@@ -11,7 +11,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U collabsphere"]
+      test: ["CMD-SHELL", "pg_isready -U collabsphere -d collabsphere_db"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -39,7 +39,7 @@ services:
       dockerfile: Dockerfile
     container_name: collabsphere_backend
     environment:
-      DATABASE_URL: postgresql://collabsphere:collabsphere_password@db:5432/collabsphere_db
+      DATABASE_URL: postgresql+asyncpg://collabsphere:collabsphere_password@db:5432/collabsphere_db
       REDIS_URL: redis://redis:6379/0
       SECRET_KEY: your-secret-key-change-in-production
       ALGORITHM: HS256

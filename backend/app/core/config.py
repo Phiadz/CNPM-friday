@@ -10,6 +10,10 @@ class Settings(BaseSettings):
         case_sensitive=True,
     )
     
+    # Project
+    PROJECT_NAME: str = "CollabSphere API"
+    API_V1_STR: str = "/api/v1"
+    
     # Database
     DATABASE_URL: str = "postgresql://collabsphere:collabsphere_password@localhost:5432/collabsphere_db"
     
@@ -31,6 +35,11 @@ class Settings(BaseSettings):
     def cors_origins_list(self) -> List[str]:
         """Convert CORS_ORIGINS string to list."""
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
+    
+    @property
+    def BACKEND_CORS_ORIGINS(self) -> List[str]:
+        """Alias for cors_origins_list for backward compatibility."""
+        return self.cors_origins_list
 
 
 # Create a single instance of Settings
