@@ -24,7 +24,7 @@ const UserProfile = () => {
   const [avatarUrl, setAvatarUrl] = useState(() => localStorage.getItem('user_avatar') || null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
-  // Danh sách vai trò với màu sắc chấm chỉ định
+  // Danh sách vai trò 
   const [roles] = useState([
     { name: 'Admin', dotColor: '#f5222d' }, // Đỏ
     { name: 'Staff', dotColor: '#faad14' }, // Vàng
@@ -37,7 +37,7 @@ const UserProfile = () => {
     localStorage.setItem('user_profile', JSON.stringify(userData));
   }, [userData]);
 
-  // Xử lý thay đổi ảnh đại diện
+  // Thay đổi ảnh đại diện
   const handleFileChange = (event) => {
     const file = event.target.files[0];
     if (file) {
@@ -58,7 +58,7 @@ const UserProfile = () => {
     setIsEditModalOpen(false);
   };
 
-  // Xử lý Đổi mật khẩu
+  // Đổi mật khẩu
   const onUpdatePassword = (values) => {
     message.success('Đã gửi yêu cầu cập nhật mật khẩu!');
     formPassword.resetFields();
