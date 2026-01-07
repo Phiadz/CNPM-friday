@@ -1,6 +1,7 @@
 """
 Pydantic schemas for Project and Topic (Project Proposal) management.
 """
+from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 from uuid import UUID
@@ -64,31 +65,28 @@ class TopicListResponse(BaseModel):
 
 class ProjectBase(BaseModel):
     """Base schema for Project."""
-    project_name: Optional[str] = Field(None, max_length=255)
+    project_name: str
+    topic_id: int
+    class_id: int
+    status: Optional[str] = "active"
 
 
 class ProjectCreate(ProjectBase):
     """Schema for creating a Project (linking Topic to Class)."""
-    topic_id: int
-    class_id: int
+    pass
 
 
 class ProjectUpdate(BaseModel):
     """Schema for updating Project."""
     project_name: Optional[str] = None
-    status: Optional[str] = Field(None, description="active, completed, archived")
+    topic_id: Optional[int] = None
+    class_id: Optional[int] = None
+    status: Optional[str] = None
 
 
 class ProjectResponse(ProjectBase):
     """Schema for Project response."""
     project_id: int
-    topic_id: int
-    class_id: int
-    status: Optional[str]
-
-    # Nested info
-    topic_title: Optional[str] = None
-    class_code: Optional[str] = None
 
     class Config:
         from_attributes = True

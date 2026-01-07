@@ -5,32 +5,40 @@ from fastapi import APIRouter
 # Create the main API router
 api_router = APIRouter()
 
-# Auth endpoints
-from app.api.v1.endpoints import auth
+# ==========================================
+# AUTH ENDPOINTS
+# ==========================================
+from app.api.v1 import auth
 api_router.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 
-# Project & Team Module endpoints
-from app.api.v1.endpoints import projects, teams, tasks
+# ==========================================
+# TOPIC (PROJECT PROPOSAL) ENDPOINTS - BE-PROJ-01
+# ==========================================
+from app.api.v1.endpoints import topic
+api_router.include_router(topic.router, prefix="/topics", tags=["Topics"])
 
-api_router.include_router(
-    projects.router,
-    prefix="/projects",
-    tags=["Projects & Topics"],
-)
+# ==========================================
+# PROJECT ENDPOINTS - BE-PROJ-01
+# ==========================================
+from app.api.v1.endpoints import project
+api_router.include_router(project.router, prefix="/projects", tags=["Projects"])
 
-api_router.include_router(
-    teams.router,
-    prefix="/teams",
-    tags=["Teams"],
-)
+# ==========================================
+# TEAM ENDPOINTS - BE-TEAM-01
+# ==========================================
+from app.api.v1.endpoints import team
+api_router.include_router(team.router, prefix="/teams", tags=["Teams"])
 
-api_router.include_router(
-    tasks.router,
-    prefix="/tasks",
-    tags=["Task Board"],
-)
+# ==========================================
+# TASK BOARD ENDPOINTS - BE-TASK-01
+# ==========================================
+from app.api.v1.endpoints import tasks
+api_router.include_router(tasks.router, prefix="/tasks", tags=["Task Board"])
 
-# Test endpoint
+
+# ==========================================
+# TEST ENDPOINT
+# ==========================================
 @api_router.get("/test")
 async def test_endpoint():
     return {"message": "API is working!"}

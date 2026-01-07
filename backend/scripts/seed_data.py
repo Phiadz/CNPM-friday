@@ -3,7 +3,12 @@ Seed initial data for testing.
 Creates roles, departments, test users, semesters, subjects, and classes.
 """
 import asyncio
+import sys
 from datetime import date
+from pathlib import Path
+
+# Add parent directory to path so we can import app
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -259,4 +264,6 @@ if __name__ == "__main__":
         asyncio.run(seed_all())
     except Exception as e:
         print(f"\n❌ Error seeding database: {e}")
+        import traceback
+        traceback.print_exc()
         raise

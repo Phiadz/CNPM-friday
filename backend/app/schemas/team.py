@@ -1,8 +1,9 @@
 """
 Pydantic schemas for Team and TeamMember management.
 """
+from __future__ import annotations
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -12,49 +13,48 @@ from pydantic import BaseModel, Field
 # TEAM SCHEMAS
 # ==========================================
 
+class UserMinimal(BaseModel):
+    user_id: UUID
+    email: Optional[str] = None
+    full_name: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
 class TeamBase(BaseModel):
-    """Base schema for Team."""
-    team_name: Optional[str] = Field(None, max_length=255)
+    project_id: Optional[int] = None
+    class_id: int
+    team_name: Optional[str] = None
 
 
 class TeamCreate(TeamBase):
-    """Schema for creating a new Team."""
-    class_id: int
-    project_id: Optional[int] = Field(None, description="Optional: Link to project immediately")
-    # leader_id will be taken from JWT token (current student)
+    """Schema for creating a team. leader_id will be taken from JWT token."""
+    pass
 
 
 class TeamUpdate(BaseModel):
-    """Schema for updating Team."""
+    project_id: Optional[int] = None
     team_name: Optional[str] = None
-    project_id: Optional[int] = Field(None, description="Assign or change project")
 
 
-class TeamResponse(TeamBase):
-    """Schema for Team response."""
+class TeamResponse(BaseModel):
     team_id: int
-    project_id: Optional[int]
+    project_id: Optional[int] = None
     leader_id: UUID
     class_id: int
-    join_code: Optional[str]
+    team_name: Optional[str] = None
+    join_code: Optional[str] = None
     created_at: datetime
-
-    # Nested info
-    leader_name: Optional[str] = None
-    class_code: Optional[str] = None
-    project_name: Optional[str] = None
-    member_count: int = 0
+    members: List[UserMinimal] = []
 
     class Config:
         from_attributes = True
 
 
-class TeamDetailResponse(TeamResponse):
-    """Detailed Team response with members list."""
-    members: list["TeamMemberResponse"] = []
-
-    class Config:
-        from_attributes = True
+class TeamJoinRequest(BaseModel):
+    """Schema for joining a team by code."""
+    join_code: str = Field(..., min_length=6, max_length=20)
 
 
 # ==========================================
@@ -95,11 +95,6 @@ class TeamMemberResponse(TeamMemberBase):
 # ==========================================
 # TEAM INVITATION SCHEMAS
 # ==========================================
-
-class TeamJoinRequest(BaseModel):
-    """Schema for student joining team via code."""
-    join_code: str = Field(..., min_length=6, max_length=20)
-
 
 class TeamInviteRequest(BaseModel):
     """Schema for leader inviting student by email."""

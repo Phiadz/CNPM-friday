@@ -27,18 +27,16 @@ async def init_db():
     print("\n📋 Creating database tables...")
     
     async with engine.begin() as conn:
-        # Drop all tables first (for clean development)
-        # Comment this out in production!
-        print("⚠️  Dropping existing tables...")
-        await conn.run_sync(Base.metadata.drop_all)
-        
-        # Create all tables
-        print("✨ Creating fresh tables...")
+        # KHÔNG DROP TABLES NỮA - Chỉ tạo tables chưa có
+        # Nếu cần reset, dùng: docker-compose down -v
+        print("✨ Creating tables (skipping existing ones)...")
         await conn.run_sync(Base.metadata.create_all)
     
     await engine.dispose()
     
     print("\n✅ Database tables created successfully!")
+    print("=" * 60)
+    print("💡 Tip: To reset database, run: docker-compose down -v")
     print("=" * 60)
 
 
