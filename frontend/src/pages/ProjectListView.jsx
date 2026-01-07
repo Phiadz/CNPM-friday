@@ -12,6 +12,8 @@ import {
 } from '@ant-design/icons';
 import { Dropdown, Menu } from 'antd';
 
+import { subjectService, projectService } from '../services/api';
+
 const { Title, Text } = Typography;
 const { Header, Sider, Content } = Layout;
 
@@ -21,60 +23,55 @@ const ProjectListView = () => {
   const [collapsed, setCollapsed] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState(localStorage.getItem('user_avatar'));
   const [selectedCategory, setSelectedCategory] = useState(null);
-  const [currentDate, setCurrentDate] = useState(dayjs()); // State cho Lịch thực tế
-  const [searchText, setSearchText] = useState(''); // State lưu từ khóa tìm kiếm
+  const [currentDate, setCurrentDate] = useState(dayjs());
+  const [searchText, setSearchText] = useState('');
+
+  // Data State
+  const [allData, setAllData] = useState([]);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const savedData = localStorage.getItem('user_profile');
     if (savedData) setUserData(JSON.parse(savedData));
+
+    // Fetch Projects
+    const fetchProjects = async () => {
+      setLoading(true);
+      try {
+        const res = await projectService.getAll();
+        // Duplicate data to match original 16 items behavior if desired, or just use res.data
+        // The original code did [...initialData, ...initialData]
+        const fetchedData = res.data || [];
+        setAllData([...fetchedData, ...fetchedData]);
+      } catch (error) {
+        console.error("Failed to fetch projects", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchProjects();
   }, []);
+
   // Logic xử lý Lịch
-  const startDay = currentDate.startOf('month').day(); // Ngày đầu tiên của tháng là thứ mấy
-  const daysInMonth = currentDate.daysInMonth(); // Tháng này có bao nhiêu ngày
+  const startDay = currentDate.startOf('month').day();
+  const daysInMonth = currentDate.daysInMonth();
   const daysArray = Array.from({ length: daysInMonth }, (_, i) => i + 1);
-  const emptyDays = Array.from({ length: startDay }, (_, i) => i); // Khoảng trống đầu tháng
+  const emptyDays = Array.from({ length: startDay }, (_, i) => i);
 
   const nextMonth = () => setCurrentDate(currentDate.add(1, 'month'));
   const prevMonth = () => setCurrentDate(currentDate.subtract(1, 'month'));
 
-  // kiểm tra tính năng cuộn trang
-  const initialData = [
-    { key: '1', proposer: 'Dr. John', topic: 'Smart Inventory System', category: 'IoT', date: 'Nov 15 2025', status: 'Pending' },
-    { key: '2', proposer: 'Dr. John', topic: 'Smart Inventory System', category: 'IoT', date: 'Nov 15 2025', status: 'Pending' },
-    { key: '3', proposer: 'Dr. John', topic: 'Smart Inventory System', category: 'IoT', date: 'Nov 15 2025', status: 'Pending' },
-    { key: '4', proposer: 'Dr. Smith', topic: 'AI Health Monitor', category: 'AI', date: 'Dec 01 2025', status: 'Pending' },
-    { key: '5', proposer: 'Dr. Brown', topic: 'Blockchain Voting', category: 'Blockchain', date: 'Dec 05 2025', status: 'Pending' },
-    { key: '6', proposer: 'Dr. John', topic: 'Smart Campus App', category: 'Mobile', date: 'Nov 20 2025', status: 'Pending' },
-    { key: '7', proposer: 'Dr. Smith', topic: 'Library Management', category: 'Web', date: 'Nov 25 2025', status: 'Pending' },
-    { key: '8', proposer: 'Dr. Brown', topic: 'Drone Delivery', category: 'IoT', date: 'Dec 10 2025', status: 'Pending' },
-  ];
-
-  const allData = [...initialData, ...initialData]; // 16 items
-
-  const categories = [...new Set(initialData.map(item => item.category))];
+  const categories = [...new Set(allData.map(item => item.category))];
 
   // Logic tìm kiếm & lọc kết hợp
   const sortedDataSource = allData
     .filter(item => {
-      // 1. Chuẩn hóa dữ liệu tìm kiếm giống bên Admin (trim và toLowerCase)
       const searchKey = searchText.trim().toLowerCase();
-
-      // 2. Nếu không có từ khóa, hiển thị tất cả (theo Category nếu có)
       const matchesCategory = selectedCategory ? item.category === selectedCategory : true;
-
-      // 3. Tìm kiếm trong Topic title
       const matchesSearch = item.topic.toLowerCase().includes(searchKey);
-
       return matchesCategory && matchesSearch;
     })
-    // 4. Sắp xếp A-Z để giao diện chuyên nghiệp
     .sort((a, b) => a.topic.localeCompare(b.topic));
-
-  const filterData = (data, field) => {
-    return data.filter(item =>
-      item[field].toLowerCase().includes(searchText.toLowerCase().trim())
-    );
-  };
 
   const handleMenuClick = (e) => {
     if (e.key === 'all') {
@@ -92,10 +89,6 @@ const ProjectListView = () => {
       ))}
     </Menu>
   );
-
-  const dataSource = selectedCategory
-    ? allData.filter(item => item.category === selectedCategory)
-    : allData;
 
   const columns = [
     { title: 'Proposer', dataIndex: 'proposer', key: 'proposer', width: 120 },
@@ -251,6 +244,7 @@ const ProjectListView = () => {
 
           {/* Bảng dữ liệu với tính năng cuộn trang */}
           <Table
+            loading={loading}
             dataSource={sortedDataSource}
             columns={columns}
             pagination={false}
