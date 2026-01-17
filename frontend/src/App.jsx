@@ -1,7 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useNavigate, Navigate } from 'react-router-dom';
 import { Layout, Row, Col, Typography, Button, Card, Avatar, Form, Input, Divider, message, Modal, Space, Tag } from 'antd';
 import { ArrowLeftOutlined, EditOutlined, UserOutlined, LockOutlined, MailOutlined } from '@ant-design/icons';
+import { AuthProvider } from './components/AuthContext';
+import DashboardPage from './pages/DashboardPage';
+import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
+import SettingsPage from './pages/SettingsPage';
 
 const { Title, Text } = Typography;
 
@@ -201,10 +206,16 @@ const UserProfile = () => {
 
 const App = () => (
   <Router>
-    <Routes>
-      <Route path="/" element={<UserProfile />} />
-      <Route path="/dashboard" element={<div style={{padding: 50}}>Trang Dashboard</div>} />
-    </Routes>
+    <AuthProvider>
+      <Routes>
+        <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/profile" element={<UserProfile />} />
+        <Route path="/settings" element={<SettingsPage />} />
+      </Routes>
+    </AuthProvider>
   </Router>
 );
 
