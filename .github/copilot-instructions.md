@@ -86,9 +86,13 @@ backend/app/
 
 ### Database Setup
 - Models are fully defined in `all_models.py` - **do not modify existing relationships**
-- Implement `session.py` with async SQLAlchemy engine
+- Implement `session.py` with async SQLAlchemy engine ✅ **Done**
 - Use Alembic for migrations (not yet configured)
 - **Environment variables** in `.env` override defaults in `config.py`
+- **Supabase Support**: Can migrate to Supabase PostgreSQL using `supabase_migration.py` script
+  - Connection format: `postgresql://postgres.[PROJECT-ID]:[PASSWORD]@db.[PROJECT-ID].supabase.co:5432/postgres`
+  - Use asyncpg driver: `postgresql+asyncpg://...`
+  - See [SUPABASE_MIGRATION.md](../SUPABASE_MIGRATION.md) for full instructions
 
 ### API Development
 - Start with **auth endpoints** (login, register, token refresh)
