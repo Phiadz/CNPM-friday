@@ -1,11 +1,14 @@
 """Security utilities for password hashing and JWT tokens."""
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Union
 
 from jose import jwt
 from passlib.context import CryptContext
 
 from app.core.config import settings
+
+# Maximum password length for bcrypt compatibility (72 bytes)
+MAX_BCRYPT_BYTES = 72
 
 try:  # pragma: no cover - defensive patch for bcrypt>=4.1
     import bcrypt  # type: ignore
@@ -15,10 +18,11 @@ try:  # pragma: no cover - defensive patch for bcrypt>=4.1
         bcrypt.__about__ = SimpleNamespace(__version__=bcrypt.__version__)
 except Exception:  # noqa: BLE001 - failing silently keeps startup resilient
     pass
-
-# Setup password hashing (Bcrypt)
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-MAX_BCRYPT_BYTES = 72
+# Setup password hashing (PBKDF2 to avoid bcrypt wheel issues on some platforms)
+pwd_context = CryptContext(
+    schemes=["pbkdf2_sha256"],
+    deprecated="auto",
+)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -36,9 +40,9 @@ def get_password_hash(password: str) -> str:
 def create_access_token(subject: Union[str, Any], expires_delta: timedelta = None) -> str:
     """Generate JWT access token."""
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     
     to_encode = {"exp": expire, "sub": str(subject)}
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)

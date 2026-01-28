@@ -14,8 +14,13 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "CollabSphere API"
     API_V1_STR: str = "/api/v1"
     
-    # Database
+    # Database - Can use Supabase PostgreSQL or local PostgreSQL
+    # For Supabase, use format: postgresql://user:password@host:port/database
     DATABASE_URL: str = "postgresql://collabsphere:collabsphere_password@localhost:5432/collabsphere_db"
+    
+    # Supabase (optional)
+    SUPABASE_URL: str = ""  # e.g., https://csvlvzkucubqlfnuuizk.supabase.co
+    SUPABASE_KEY: str = ""  # Use anon key for client, service_role key for server
     
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"
