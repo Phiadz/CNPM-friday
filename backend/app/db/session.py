@@ -18,8 +18,8 @@ engine: AsyncEngine = create_async_engine(
     # Force disable prepared statements for Supabase transaction mode
     connect_args={
         "statement_cache_size": 0,
-        "prepared_statement_cache_size": 0,
     },
+    execution_options={"compiled_cache": None},
 )
 
 # Create async session factory

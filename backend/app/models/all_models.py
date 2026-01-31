@@ -326,9 +326,12 @@ class Task(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True) # Added
     due_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    blocked_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    depends_on: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("tasks.task_id"), nullable=True)
 
     sprint: Mapped[Optional["Sprint"]] = relationship("Sprint", back_populates="tasks")
     assignee: Mapped[Optional["User"]] = relationship("User", back_populates="assigned_tasks", foreign_keys=[assigned_to])
+    dependent_on: Mapped[Optional["Task"]] = relationship("Task", remote_side=[task_id])
 
 
 class Meeting(Base):

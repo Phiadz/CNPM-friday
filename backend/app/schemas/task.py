@@ -39,6 +39,8 @@ class TaskCreate(TaskBase):
     assigned_to: Optional[UUID] = None
     priority: str = "MEDIUM"
     due_date: Optional[datetime] = None
+    blocked_reason: Optional[str] = None
+    depends_on: Optional[int] = None
 
 
 class TaskUpdate(BaseModel):
@@ -49,6 +51,8 @@ class TaskUpdate(BaseModel):
     assigned_to: Optional[UUID] = None
     priority: Optional[str] = None
     due_date: Optional[datetime] = None
+    blocked_reason: Optional[str] = None
+    depends_on: Optional[int] = None
     
     # Enable case-insensitive validator for status and priority if needed
     @field_validator('status', mode='before')
@@ -75,6 +79,8 @@ class TaskResponse(TaskBase):
     created_at: datetime
     updated_at: Optional[datetime] = None
     due_date: Optional[datetime] = None
+    blocked_reason: Optional[str] = None
+    depends_on: Optional[int] = None
     created_by: Optional[str] = None # Added field for convenience (mapped manually in API)
 
     class Config:

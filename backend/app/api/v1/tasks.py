@@ -185,6 +185,8 @@ async def create_task(
         assigned_to=task.assigned_to,
         created_by=current_user.user_id,
         created_at=datetime.now(timezone.utc),
+        blocked_reason=task.blocked_reason,
+        depends_on=task.depends_on,
     )
     
     db.add(new_task)
@@ -208,7 +210,9 @@ async def create_task(
         "priority": new_task.priority,
         "assigned_to": assigned_name,
         "created_by": current_user.full_name,
-        "created_at": new_task.created_at
+        "created_at": new_task.created_at,
+        "blocked_reason": new_task.blocked_reason,
+        "depends_on": new_task.depends_on
     }
 
 
@@ -352,7 +356,9 @@ async def get_task_detail(
         "assigned_to": assigned_name,
         "created_by": creator.full_name if creator else "Unknown",
         "created_at": task.created_at,
-        "updated_at": task.updated_at
+        "updated_at": task.updated_at,
+        "blocked_reason": task.blocked_reason,
+        "depends_on": task.depends_on
     }
 
 
@@ -420,6 +426,12 @@ async def update_task(
     if task_update.assigned_to is not None:
         task.assigned_to = task_update.assigned_to
     
+    if task_update.blocked_reason is not None:
+        task.blocked_reason = task_update.blocked_reason
+        
+    if task_update.depends_on is not None:
+        task.depends_on = task_update.depends_on
+    
     # Update timestamp
     task.updated_at = datetime.now(timezone.utc)
     
@@ -443,7 +455,9 @@ async def update_task(
         "status": task.status,
         "priority": task.priority,
         "assigned_to": assigned_name,
-        "updated_at": task.updated_at
+        "updated_at": task.updated_at,
+        "blocked_reason": task.blocked_reason,
+        "depends_on": task.depends_on
     }
 
 
@@ -639,9 +653,22 @@ async def change_task_status(
             detail="blocked_reason is required when setting status to BLOCKED"
         )
     
+    # If moving to DONE, check dependencies
+    if new_status_upper == "DONE" and task.depends_on:
+        dep_query = select(Task).where(Task.task_id == task.depends_on)
+        dep_result = await db.execute(dep_query)
+        dep_task = dep_result.scalar()
+        if dep_task and dep_task.status != "DONE":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot complete task. Dependency task {task.depends_on} is not DONE."
+            )
+
     # Update
     task.status = new_status_upper
     task.updated_at = datetime.now(timezone.utc)
+    if blocked_reason is not None:
+        task.blocked_reason = blocked_reason
     
     db.add(task)
     await db.commit()
