@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-    Layout, Typography, Button, Card, Row, Col, Progress, List,
+    Alert, Layout, Typography, Button, Card, Row, Col, Progress, List,
     Avatar, Space, Badge, Input, Upload, Timeline, Tag, Divider,
     Modal, Form, Select, DatePicker, message, Dropdown, Popover
 } from 'antd';
@@ -16,6 +16,7 @@ import {
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useAuth, resolveRoleName } from '../components/AuthContext';
+import { lecturerTopicsService } from '../services/lecturerTopicsService';
 import './DashboardPage.css';
 import './LecturerDashboard.css';
 
@@ -98,6 +99,34 @@ const getProjectIcon = (project) => {
         return <ProjectOutlined />;
     }
     return <ProjectOutlined />;
+};
+
+const normalizeTopicStatus = (value) => (value ? String(value).toUpperCase() : 'UNKNOWN');
+
+const formatTopicStatus = (value) => {
+    const normalized = normalizeTopicStatus(value);
+    switch (normalized) {
+        case 'APPROVED':
+            return 'Approved';
+        case 'REJECTED':
+            return 'Rejected';
+        case 'PENDING':
+            return 'Pending';
+        case 'DRAFT':
+            return 'Draft';
+        default:
+            return normalized;
+    }
+};
+
+const extractErrorMessage = (error, fallback) => {
+    if (error?.response?.data?.detail) {
+        return error.response.data.detail;
+    }
+    if (error?.message) {
+        return error.message;
+    }
+    return fallback;
 };
 
 const LecturerDashboard = () => {
@@ -255,6 +284,9 @@ const LecturerDashboard = () => {
     const [storageUsage, setStorageUsage] = useState(65);
     const [uploadedFiles, setUploadedFiles] = useState([]);
     const [hoveredNav, setHoveredNav] = useState(null);
+    const [topics, setTopics] = useState([]);
+    const [topicsLoading, setTopicsLoading] = useState(false);
+    const [topicsError, setTopicsError] = useState('');
 
     const navButtonStyles = (key, { active, danger } = {}) => ({
         textAlign: collapsed ? 'center' : 'left',
@@ -413,6 +445,35 @@ const LecturerDashboard = () => {
         };
     }, [activeProjectsStorageKey, roleBasedProjects, user]);
 
+    const handleLoadTopics = useCallback(async () => {
+        setTopicsLoading(true);
+        setTopicsError('');
+        try {
+            const response = await lecturerTopicsService.listTopics();
+            const payload = Array.isArray(response?.data?.topics)
+                ? response.data.topics
+                : Array.isArray(response?.data)
+                    ? response.data
+                    : [];
+            setTopics(payload);
+        } catch (error) {
+            if (error?.response?.status === 401) {
+                message.error('Session expired. Please sign in again.');
+                logout();
+                navigate('/login', { replace: true });
+                return;
+            }
+            const errorMessage = extractErrorMessage(error, 'Failed to load topics');
+            setTopicsError(errorMessage);
+        } finally {
+            setTopicsLoading(false);
+        }
+    }, [logout, navigate]);
+
+    useEffect(() => {
+        handleLoadTopics();
+    }, [handleLoadTopics]);
+
     const [timelineData, setTimelineData] = useState(roleBasedTimeline);
 
     useEffect(() => {
@@ -535,36 +596,31 @@ const LecturerDashboard = () => {
         message.success('File removed');
     };
 
-    const recentActivities = [
-        'Smart Inventory System',
-        'AI Health Monitor',
-        'Smart Campus App',
-        'Drone Delivery'
-    ];
+    const topicStats = useMemo(() => {
+        const total = topics.length;
+        const pending = topics.filter((topic) => {
+            const status = normalizeTopicStatus(topic?.status);
+            return status === 'DRAFT' || status === 'PENDING';
+        }).length;
+        const approved = topics.filter((topic) => normalizeTopicStatus(topic?.status) === 'APPROVED').length;
+        return [
+            { title: 'Total topics', subtitle: String(total), accent: '#EFEFEF' },
+            { title: 'Pending topics', subtitle: String(pending), accent: '#EFEFEF' },
+            { title: 'Approved topics', subtitle: String(approved), accent: '#EFEFEF' },
+        ];
+    }, [topics]);
 
-    const stats = [
-        { title: 'Total classes', subtitle: 'quantity', accent: '#EFEFEF' },
-        { title: 'Total teams', subtitle: 'quantity', accent: '#EFEFEF' },
-        { title: 'Pending requests', subtitle: 'quantity', accent: '#EFEFEF' },
-    ];
+    const projects = useMemo(() => (
+        topics.slice(0, 12).map((topic) => ({
+            title: topic.title || 'Untitled',
+            subtitle: formatTopicStatus(topic.status),
+            date: topic.created_at ? dayjs(topic.created_at).format('MMM DD YYYY') : '—',
+        }))
+    ), [topics]);
 
-    const projects = [
-        { title: 'Name of project', subtitle: 'concept', date: 'Nov 10 2025' },
-        { title: 'Name of project', subtitle: 'concept', date: 'Nov 10 2025' },
-        { title: 'Name of project', subtitle: 'concept', date: 'Nov 10 2025' },
-        { title: 'Smart Attendance Tracker', subtitle: 'productivity', date: 'Nov 12 2025' },
-        { title: 'Campus Shuttle Optimizer', subtitle: 'logistics', date: 'Nov 14 2025' },
-        { title: 'AI Tutor Companion', subtitle: 'learning', date: 'Nov 16 2025' },
-        { title: 'Research Lab Portal', subtitle: 'collaboration', date: 'Nov 18 2025' },
-        { title: 'Green Energy Dashboard', subtitle: 'sustainability', date: 'Nov 20 2025' },
-        { title: 'Library Queue Manager', subtitle: 'operations', date: 'Nov 22 2025' },
-        { title: 'Thesis Progress Hub', subtitle: 'monitoring', date: 'Nov 24 2025' },
-        { title: 'Event Check-in System', subtitle: 'engagement', date: 'Nov 26 2025' },
-        { title: 'Mentor Match AI', subtitle: 'guidance', date: 'Nov 28 2025' },
-        { title: 'Lab Equipment Booking', subtitle: 'resource', date: 'Nov 30 2025' },
-        { title: 'Student Wellness Radar', subtitle: 'insights', date: 'Dec 02 2025' },
-        { title: 'Curriculum Analyzer', subtitle: 'analytics', date: 'Dec 04 2025' },
-    ];
+    const recentActivities = useMemo(() => (
+        topics.slice(0, 6).map((topic) => topic.title || 'Untitled topic')
+    ), [topics]);
 
     const startDay = currentDate.startOf('month').day();
     const daysInMonth = currentDate.daysInMonth();
@@ -797,8 +853,23 @@ const LecturerDashboard = () => {
                 }}>
                     <Card className="hero-card hero-placeholder dashboard-card" variant="borderless" />
 
+                    {topicsError && (
+                        <Alert
+                            type="error"
+                            showIcon
+                            message="Unable to load topics"
+                            description={topicsError}
+                            action={(
+                                <Button size="small" onClick={handleLoadTopics}>
+                                    Retry
+                                </Button>
+                            )}
+                            style={{ marginBottom: 16 }}
+                        />
+                    )}
+
                     <Row gutter={16} className="stats-row">
-                        {stats.map((stat) => (
+                        {topicStats.map((stat) => (
                             <Col key={stat.title} xs={24} sm={8}>
                                 <Card className="stat-card dashboard-card" variant="borderless">
                                     <div className="stat-content">
@@ -823,7 +894,25 @@ const LecturerDashboard = () => {
                         tabIndex={0}
                         onWheel={handleProjectWheel}
                     >
-                        {projects.map((project, index) => (
+                        {topicsLoading && (
+                            <Card className="project-card dashboard-card" variant="borderless">
+                                <Title level={5} style={{ marginTop: 16 }}>Loading topics...</Title>
+                                <Text type="secondary">Please wait</Text>
+                                <div className="project-footer">
+                                    <Text type="secondary">—</Text>
+                                </div>
+                            </Card>
+                        )}
+                        {!topicsLoading && projects.length === 0 && (
+                            <Card className="project-card dashboard-card" variant="borderless">
+                                <Title level={5} style={{ marginTop: 16 }}>No topics yet</Title>
+                                <Text type="secondary">Create a topic to get started</Text>
+                                <div className="project-footer">
+                                    <Text type="secondary">—</Text>
+                                </div>
+                            </Card>
+                        )}
+                        {!topicsLoading && projects.map((project, index) => (
                             <Card key={`${project.title}-${index}`} className="project-card dashboard-card" variant="borderless">
                                 <div className="project-thumb" />
                                 <Title level={5} style={{ marginTop: 16 }}>{project.title}</Title>

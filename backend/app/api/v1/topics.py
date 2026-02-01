@@ -63,14 +63,21 @@ async def create_topic(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only lecturers can create topics"
         )
+
+    if current_user.dept_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Lecturer must belong to a department before creating topics"
+        )
     
     # Create new topic
     new_topic = Topic(
         title=topic.title,
         description=topic.description,
-        requirements=topic.requirements,
+        objectives=topic.requirements,
         status="DRAFT",
-        created_by=current_user.user_id,
+        creator_id=current_user.user_id,
+        dept_id=current_user.dept_id,
         created_at=datetime.now(timezone.utc),
     )
     
@@ -134,7 +141,7 @@ async def get_topics(
     topics_response = []
     for t in topics:
         # Get creator name
-        creator_query = select(User).where(User.user_id == t.created_by)
+        creator_query = select(User).where(User.user_id == t.creator_id)
         creator_result = await db.execute(creator_query)
         creator = creator_result.scalar()
         
@@ -142,6 +149,7 @@ async def get_topics(
             "topic_id": t.topic_id,
             "title": t.title,
             "description": t.description,
+            "requirements": t.objectives,
             "status": t.status,
             "created_by": creator.full_name if creator else "Unknown",
             "created_at": t.created_at
@@ -193,27 +201,20 @@ async def get_topic_detail(
         )
     
     # Get creator info
-    creator_query = select(User).where(User.user_id == topic.created_by)
+    creator_query = select(User).where(User.user_id == topic.creator_id)
     creator_result = await db.execute(creator_query)
     creator = creator_result.scalar()
-    
-    # Get approver info
-    approver = None
-    if topic.approved_by:
-        approver_query = select(User).where(User.user_id == topic.approved_by)
-        approver_result = await db.execute(approver_query)
-        approver = approver_result.scalar()
     
     return {
         "topic_id": topic.topic_id,
         "title": topic.title,
         "description": topic.description,
-        "requirements": topic.requirements,
+        "requirements": topic.objectives,
         "status": topic.status,
         "created_by": creator.full_name if creator else "Unknown",
         "created_at": topic.created_at,
-        "approved_by": approver.full_name if approver else None,
-        "approved_at": topic.approved_at
+        "approved_by": None,
+        "approved_at": None
     }
 
 
@@ -257,8 +258,6 @@ async def approve_topic(
     
     # Update status
     topic.status = "APPROVED"
-    topic.approved_by = current_user.user_id
-    topic.approved_at = datetime.now(timezone.utc)
     
     db.add(topic)
     await db.commit()
@@ -267,7 +266,7 @@ async def approve_topic(
         "topic_id": topic.topic_id,
         "status": topic.status,
         "approved_by": current_user.full_name,
-        "approved_at": topic.approved_at
+        "approved_at": datetime.now(timezone.utc)
     }
 
 
@@ -311,8 +310,6 @@ async def reject_topic(
     
     # Update status
     topic.status = "REJECTED"
-    topic.approved_by = current_user.user_id
-    topic.approved_at = datetime.now(timezone.utc)
     
     db.add(topic)
     await db.commit()
@@ -321,7 +318,7 @@ async def reject_topic(
         "topic_id": topic.topic_id,
         "status": topic.status,
         "rejected_by": current_user.full_name,
-        "rejected_at": topic.approved_at
+        "rejected_at": datetime.now(timezone.utc)
     }
 
 

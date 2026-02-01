@@ -846,9 +846,8 @@ const TopicManagement = () => {
         setEditingTopic(null);
         topicForm.setFieldsValue({
             title: '',
-            team: '',
-            status: 'Draft',
-            author: user?.full_name || user?.email || 'Lecturer',
+            description: '',
+            requirements: '',
         });
         setTopicModalOpen(true);
     };
@@ -857,32 +856,45 @@ const TopicManagement = () => {
         setEditingTopic(record);
         topicForm.setFieldsValue({
             title: record.title,
-            team: record.team,
-            status: record.status,
-            author: record.author,
+            description: record.description || '',
+            requirements: record.requirements || '',
         });
         setTopicModalOpen(true);
     };
 
     const handleSaveTopic = async () => {
         const values = await topicForm.validateFields();
-        const rawStatus = normalizeStatus(values.status);
         if (editingTopic) {
             setTopicRows((prev) => prev.map((item) => (
                 item.key === editingTopic.key
-                    ? { ...item, ...values, status: formatTopicStatus(rawStatus), rawStatus }
+                    ? { ...item, ...values }
                     : item
             )));
             message.success('Topic updated');
         } else {
-            const newTopic = {
-                key: String(Date.now()),
-                ...values,
-                status: formatTopicStatus(rawStatus),
-                rawStatus,
-            };
-            setTopicRows((prev) => [newTopic, ...prev]);
-            message.success('Topic created');
+            try {
+                const response = await lecturerTopicsService.createTopic({
+                    title: values.title,
+                    description: values.description,
+                    requirements: values.requirements,
+                });
+                const created = buildTopicRow(response?.data);
+                setTopicRows((prev) => [created, ...prev]);
+                message.success('Topic created');
+            } catch (error) {
+                if (isAuthError(error)) {
+                    message.error('Session expired. Please sign in again.');
+                    logout();
+                    navigate('/login', { replace: true });
+                    return;
+                }
+                if (isForbiddenError(error)) {
+                    message.error(extractErrorMessage(error, 'You do not have permission to create topics.'));
+                    return;
+                }
+                message.error(extractErrorMessage(error, 'Failed to create topic'));
+                return;
+            }
         }
         setTopicModalOpen(false);
         topicForm.resetFields();
@@ -1306,25 +1318,16 @@ const TopicManagement = () => {
                                 <Input placeholder="e.g. Smart Attendance Tracker" />
                             </Form.Item>
                             <Form.Item
-                                label="Team"
-                                name="team"
-                                rules={[{ required: true, message: 'Please enter a team name' }]}
+                                label="Description"
+                                name="description"
                             >
-                                <Input placeholder="e.g. Team Alpha" />
+                                <Input.TextArea rows={3} placeholder="Short description" />
                             </Form.Item>
                             <Form.Item
-                                label="Author"
-                                name="author"
-                                rules={[{ required: true, message: 'Please enter author name' }]}
+                                label="Requirements"
+                                name="requirements"
                             >
-                                <Input placeholder="e.g. Nguyen Van A" />
-                            </Form.Item>
-                            <Form.Item label="Status" name="status">
-                                <Select>
-                                    <Select.Option value="Draft">Draft</Select.Option>
-                                    <Select.Option value="Pending">Pending</Select.Option>
-                                    <Select.Option value="Approved">Approved</Select.Option>
-                                </Select>
+                                <Input.TextArea rows={2} placeholder="Optional requirements" />
                             </Form.Item>
                         </Form>
                     </Modal>
