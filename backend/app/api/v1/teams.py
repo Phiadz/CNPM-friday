@@ -13,6 +13,7 @@ Description:
 
 from fastapi import APIRouter, HTTPException, Depends, status
 from sqlalchemy import select, and_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime, timezone
 from typing import Optional
@@ -20,8 +21,8 @@ import secrets
 
 from app.db.session import get_db
 from app.api.deps import get_current_user
-from app.models.all_models import User, Team, TeamMember
-from app.schemas.team import TeamCreate, TeamResponse
+from app.models.all_models import User, Team, TeamMember, Project
+from app.schemas.team import TeamCreate, TeamResponse, TeamProjectSelect
 
 router = APIRouter()
 
@@ -71,6 +72,23 @@ async def create_team(
     join_code = secrets.token_hex(3).upper()
     
     # Create new team
+    if team.project_id:
+        project_query = select(Project).where(Project.project_id == team.project_id)
+        project_result = await db.execute(project_query)
+        project = project_result.scalar()
+        
+        if not project:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found"
+            )
+        
+        if project.claimed_by_id != current_user.user_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="You must claim this project before creating a team for it"
+            )
+
     new_team = Team(
         name=team.name,
         project_id=team.project_id,
@@ -78,22 +96,36 @@ async def create_team(
         join_code=join_code,
         is_finalized=False,
         created_by=current_user.user_id,
+        leader_id=current_user.user_id,
         created_at=datetime.now(timezone.utc),
     )
     
     db.add(new_team)
-    await db.flush()  # ← Important! Need team_id before creating member
-    
-    # Auto-add creator as LEADER
-    team_member = TeamMember(
-        team_id=new_team.team_id,
-        user_id=current_user.user_id,
-        role="LEADER",
-        joined_at=datetime.now(timezone.utc),
-    )
-    
-    db.add(team_member)
-    await db.commit()
+    try:
+        await db.flush()  # ← Important! Need team_id before creating member
+        
+        # Auto-add creator as LEADER
+        team_member = TeamMember(
+            team_id=new_team.team_id,
+            user_id=current_user.user_id,
+            role="LEADER",
+            joined_at=datetime.now(timezone.utc),
+        )
+        
+        db.add(team_member)
+        await db.commit()
+    except IntegrityError as e:
+        await db.rollback()
+        # Check for FK violation
+        if "teams_project_id_fkey" in str(e):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid project_id. Project does not exist."
+            )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Database integrity error: " + str(e)
+        )
     await db.refresh(new_team)
     
     return {
@@ -454,4 +486,85 @@ async def finalize_team(
         "team_id": team_id,
         "message": "Team finalized",
         "is_finalized": True
+    }
+
+
+@router.patch("/{team_id}/select-project", status_code=200)
+async def select_project(
+    team_id: int,
+    payload: TeamProjectSelect,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Select a project for the team (Leader only)
+    - Validates team exists
+    - Validates user is the leader
+    - Validates team not finalized
+    - Validates project exists and is active
+    
+    Request:
+        {
+            "project_id": 1
+        }
+    
+    Response:
+        {
+            "team_id": 1,
+            "project_id": 1,
+            "message": "Project selected successfully"
+        }
+    """
+    # Get team
+    query = select(Team).where(Team.team_id == team_id)
+    result = await db.execute(query)
+    team = result.scalar()
+    
+    if not team:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Team not found"
+        )
+    
+    # Check if user is the leader
+    if team.leader_id != current_user.user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the team leader can select a project"
+        )
+    
+    # Check if team is finalized
+    if team.is_finalized:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot select project for a finalized team"
+        )
+    
+    # Verify project exists and is active
+    project_query = select(Project).where(Project.project_id == payload.project_id)
+    project_result = await db.execute(project_query)
+    project = project_result.scalar()
+    
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found"
+        )
+    
+    if project.status != "active":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Selected project is not active"
+        )
+    
+    # Update team project
+    team.project_id = payload.project_id
+    db.add(team)
+    await db.commit()
+    await db.refresh(team)
+    
+    return {
+        "team_id": team.team_id,
+        "project_id": team.project_id,
+        "message": "Project selected successfully"
     }
