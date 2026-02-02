@@ -8,6 +8,11 @@ from pydantic import BaseModel
 
 # ==================== TEAM SCHEMAS ====================
 
+class TeamProjectSelect(BaseModel):
+    """Schema for selecting a project for a team."""
+    project_id: int
+
+
 class TeamBase(BaseModel):
     """Base schema for Team."""
     team_name: Optional[str] = None
@@ -16,7 +21,7 @@ class TeamBase(BaseModel):
 class TeamCreate(TeamBase):
     """Schema for creating a Team."""
     name: str
-    project_id: int
+    project_id: Optional[int] = None
     description: Optional[str] = None
 
 
@@ -42,8 +47,8 @@ class TeamResponse(TeamBase):
     """Schema for Team response."""
     team_id: int
     project_id: Optional[int] = None
-    leader_id: UUID
-    class_id: int
+    leader_id: Optional[UUID] = None
+    class_id: Optional[int] = None
     join_code: Optional[str] = None
     is_finalized: bool = False
     created_at: datetime
@@ -57,8 +62,8 @@ class TeamSimpleResponse(TeamBase):
     """Simple Team response without members."""
     team_id: int
     project_id: Optional[int] = None
-    leader_id: UUID
-    class_id: int
+    leader_id: Optional[UUID] = None
+    class_id: Optional[int] = None
     join_code: Optional[str] = None
     is_finalized: bool = False
     created_at: datetime
