@@ -2,6 +2,7 @@ import axios from 'axios';
 
 // 1. Define Base URL
 // For local development with Docker: http://localhost:8000/api/v1
+// Backend startup command: uvicorn app.main:app --reload (run from backend directory)
 const BASE_URL = 'http://127.0.0.1:8000/api/v1';
 
 const api = axios.create({
@@ -19,6 +20,19 @@ api.interceptors.request.use((config) => {
   console.log('[API] Request:', config.method?.toUpperCase(), config.baseURL + config.url);
   return config;
 });
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      console.error('[API] 401 Unauthorized - Logging out');
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('user');
+      // window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
 
 // --- API Services ---
 

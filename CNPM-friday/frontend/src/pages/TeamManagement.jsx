@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Layout, Typography, Button, Table, Modal, Form, Input, message, Row, Col, Card } from 'antd';
 import { PlusOutlined, TeamOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import { teamService } from '../services/api';
+import { studentTeamsService } from '../services/studentTeamsService';
 import MainLayout from '../components/MainLayout';
 
 const { Title, Text } = Typography;
@@ -20,7 +20,7 @@ const TeamManagement = () => {
     const fetchTeams = async () => {
         setLoading(true);
         try {
-            const res = await teamService.getAll();
+            const res = await studentTeamsService.listTeams();
             setTeams(res.data || []);
         } catch (error) {
             console.error("Failed to fetch teams", error);
@@ -36,7 +36,7 @@ const TeamManagement = () => {
 
     const handleCreateTeam = async (values) => {
         try {
-            await teamService.create(values);
+            await studentTeamsService.createTeam(values);
             message.success('Team created successfully');
             setIsModalOpen(false);
             form.resetFields();
@@ -92,7 +92,8 @@ const TeamManagement = () => {
     ];
     const handleJoinTeam = async (values) => {
         try {
-            await teamService.joinByCode(values.join_code);
+            // Using joinTeamByCode which assumes a global join endpoint exists
+            await studentTeamsService.joinTeamByCode(values.join_code);
             message.success('Joined team successfully');
             setIsJoinModalOpen(false);
             joinForm.resetFields();
@@ -106,7 +107,7 @@ const TeamManagement = () => {
     return (
         <MainLayout>
             <div style={{ marginBottom: 30 }}>
-                <Title level={2} style={{ margin: '0 0 8px 0', textTransform: 'uppercase', letterSpacing: 0.5 }}>Team Management</Title>
+                <Title level={2} style={{ margin: '0 0 8px 0', fontWeight: 'normal' }}>Team Management</Title>
                 <Text style={{ fontSize: 16, color: '#595959' }}>See your team and manage your team member and roles</Text>
             </div>
 

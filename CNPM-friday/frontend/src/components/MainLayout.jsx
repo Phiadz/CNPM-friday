@@ -162,13 +162,13 @@ const MainLayout = ({ children }) => {
                                 <div style={navButtonStyles('whiteboard', '/whiteboard')} onClick={() => message.info('Coming soon')} onMouseEnter={() => setHoveredNav('whiteboard')} onMouseLeave={() => setHoveredNav(null)}>
                                     <FormOutlined /> {!collapsed && <span style={{ marginLeft: 10 }}>Whiteboard Canvas</span>}
                                 </div>
-                                <div style={navButtonStyles('video', '/video')} onClick={() => message.info('Coming soon')} onMouseEnter={() => setHoveredNav('video')} onMouseLeave={() => setHoveredNav(null)}>
+                                <div style={navButtonStyles('video', '/video')} onClick={() => navigate('/video')} onMouseEnter={() => setHoveredNav('video')} onMouseLeave={() => setHoveredNav(null)}>
                                     <VideoCameraOutlined /> {!collapsed && <span style={{ marginLeft: 10 }}>Video Meeting Room</span>}
                                 </div>
-                                <div style={navButtonStyles('submission', '/submission')} onClick={() => message.info('Coming soon')} onMouseEnter={() => setHoveredNav('submission')} onMouseLeave={() => setHoveredNav(null)}>
+                                <div style={navButtonStyles('submission', '/submission')} onClick={() => navigate('/submission')} onMouseEnter={() => setHoveredNav('submission')} onMouseLeave={() => setHoveredNav(null)}>
                                     <SendOutlined /> {!collapsed && <span style={{ marginLeft: 10 }}>Submission Portal</span>}
                                 </div>
-                                <div style={navButtonStyles('peer', '/peer')} onClick={() => message.info('Coming soon')} onMouseEnter={() => setHoveredNav('peer')} onMouseLeave={() => setHoveredNav(null)}>
+                                <div style={navButtonStyles('peer', '/peer-review')} onClick={() => navigate('/peer-review')} onMouseEnter={() => setHoveredNav('peer')} onMouseLeave={() => setHoveredNav(null)}>
                                     <FileTextOutlined /> {!collapsed && <span style={{ marginLeft: 10 }}>Peer Review Form</span>}
                                 </div>
                             </Space>
