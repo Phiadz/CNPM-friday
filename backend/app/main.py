@@ -27,16 +27,13 @@ async def startup_event():
     logger.info(f"📍 Using API prefix: {settings.API_V1_STR}")
 
 # Configure CORS
-# Always fall back to permissive origins during local development if none are provided
-allowed_origins = settings.BACKEND_CORS_ORIGINS or ["*"]
-if allowed_origins:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=[str(origin) for origin in allowed_origins],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins_list,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Mount API routes with /api/v1 prefix
 app.include_router(api_router, prefix=settings.API_V1_STR)
