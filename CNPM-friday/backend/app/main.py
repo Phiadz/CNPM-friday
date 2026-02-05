@@ -29,11 +29,7 @@ async def startup_event():
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-<<<<<<< HEAD:backend/app/main.py
-    allow_origins=settings.cors_origins_list,
-=======
     allow_origins=["*"],
->>>>>>> upstream/main:CNPM-friday/backend/app/main.py
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

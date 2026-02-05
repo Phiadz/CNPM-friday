@@ -11,7 +11,6 @@ class TopicCreate(BaseModel):
     requirements: Optional[str] = None
     objectives: Optional[str] = None
     tech_stack: Optional[str] = None
-    dept_id: Optional[int] = None
 
 class TopicUpdate(BaseModel):
     title: Optional[str] = None
@@ -19,7 +18,6 @@ class TopicUpdate(BaseModel):
     requirements: Optional[str] = None
     objectives: Optional[str] = None
     tech_stack: Optional[str] = None
-    dept_id: Optional[int] = None
 
 class TopicResponse(BaseModel):
     topic_id: int

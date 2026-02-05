@@ -6,11 +6,7 @@
  */
 
 import api from './api';
-<<<<<<< HEAD:frontend/src/services/meetingService.js
-import peerService from './peerService';
-=======
 import Peer from 'peerjs';
->>>>>>> upstream/main:CNPM-friday/frontend/src/services/meetingService.js
 
 // ============ MEETING API ============
 
@@ -30,34 +26,6 @@ export const scheduleMeeting = async (meetingData) => {
  */
 export const getTeamMeetings = async (teamId, upcomingOnly = false) => {
     const response = await api.get('/meetings/', {
-<<<<<<< HEAD:frontend/src/services/meetingService.js
-        // ============ PEERJS VIDEO CALL ============
-
-        export const initPeer = (peerId, options = {}) => peerService.init(peerId, options);
-
-        export const getLocalStream = (constraints = { video: true, audio: true }) =>
-            peerService.getLocalStream(constraints);
-
-        export const callPeer = (remotePeerId) => peerService.callPeer(remotePeerId);
-
-        export const endCall = (remotePeerId) => {
-            if (peerService.connections?.has?.(remotePeerId)) {
-                const entry = peerService.connections.get(remotePeerId);
-                entry?.call?.close();
-                peerService.connections.delete(remotePeerId);
-            }
-        };
-
-        export const endAllCalls = () => {
-            peerService.disconnect();
-        };
-
-        export const toggleAudio = (enabled) => peerService.toggleAudio(enabled);
-
-        export const toggleVideo = (enabled) => peerService.toggleVideo(enabled);
-
-        export const cleanupPeer = () => peerService.disconnect();
-=======
         params: {
             team_id: teamId,
             upcoming_only: upcomingOnly
@@ -240,7 +208,6 @@ export const endAllCalls = () => {
     remoteStreams.clear();
 };
 
->>>>>>> upstream/main:CNPM-friday/frontend/src/services/meetingService.js
 /**
  * Tắt local stream và cleanup
  */
