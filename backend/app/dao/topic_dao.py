@@ -55,7 +55,7 @@ class TopicDAO:
         result = await self.db.execute(query)
         return result.scalar()
 
-    async def create_topic(self, topic_data: TopicCreate, creator_id: any) -> Topic:
+    async def create_topic(self, topic_data: TopicCreate, creator_id: any, dept_id: Optional[int]) -> Topic:
         """
         Create a new topic. Invalidates cache.
         """
@@ -68,6 +68,7 @@ class TopicDAO:
             status="DRAFT",
             creator_id=creator_id,
             created_by=creator_id, 
+            dept_id=dept_id,
             created_at=datetime.datetime.now(datetime.timezone.utc)
         )
         
@@ -94,3 +95,10 @@ class TopicDAO:
         self._cache.clear()
         
         return topic
+
+    async def delete_topic(self, topic: Topic) -> None:
+        await self.db.delete(topic)
+        await self.db.commit()
+
+        # Invalidate cache
+        self._cache.clear()

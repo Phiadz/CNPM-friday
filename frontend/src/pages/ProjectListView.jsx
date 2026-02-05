@@ -166,14 +166,23 @@ const ProjectListView = () => {
       setLoading(true);
       try {
         const res = await projectService.getAll();
-        const rawData = res.data || [];
+        const rawData = Array.isArray(res.data) ? res.data : [];
         // Map data to have 'key' for Antd Table
-        const mappedData = rawData.map(item => ({
-          ...item,
-          key: item.id || item.project_id || item.key || Math.random().toString(),
-          // Ensure id is present for claim
-          id: item.id || item.project_id
-        }));
+        const mappedData = rawData.map(item => {
+          const topicTitle = item.topic || item.topic_title || item.project_name || 'Untitled Topic';
+          const statusRaw = (item.status || '').toString().toLowerCase();
+          const normalizedStatus = statusRaw === 'claimed' ? 'Claimed' : 'Available';
+          return {
+            ...item,
+            key: item.id || item.project_id || item.key || Math.random().toString(),
+            // Ensure id is present for claim
+            id: item.id || item.project_id,
+            topic: topicTitle,
+            proposer: item.proposer || item.proposer_name || item.created_by || 'Lecturer',
+            date: item.date || (item.claimed_at ? dayjs(item.claimed_at).format('DD/MM/YYYY') : 'N/A'),
+            status: normalizedStatus,
+          };
+        });
         setAllData(mappedData);
       } catch (error) {
         console.error("Failed to fetch projects", error);

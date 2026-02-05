@@ -6,7 +6,16 @@ from typing import Optional
 
 from app.db.session import get_db
 from app.api.deps import get_current_user
-from app.models.all_models import User, Topic, Evaluation
+from app.models.all_models import (
+    User,
+    Topic,
+    Evaluation,
+    AcademicClass,
+    Project,
+    Department,
+    Semester,
+    Subject,
+)
 from app.schemas.topic import (
     TopicCreate, TopicUpdate, TopicResponse, EvaluationCreate, EvaluationResponse
 )
@@ -32,9 +41,20 @@ async def create_topic(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only lecturers can create topics"
         )
+    if not getattr(current_user, "can_create_topics", False):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Topic creation permission required"
+        )
     
+    if current_user.dept_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Your account has no department assigned"
+        )
+
     dao = TopicDAO(db)
-    new_topic = await dao.create_topic(topic, current_user.user_id)
+    new_topic = await dao.create_topic(topic, current_user.user_id, current_user.dept_id)
     
     return {
         "topic_id": new_topic.topic_id,
@@ -161,6 +181,87 @@ async def approve_topic(
         raise HTTPException(status_code=404, detail="Topic not found")
 
     updated_topic = await dao.update_topic_status(topic, "APPROVED", current_user.user_id)
+
+    # Auto-create a project for this approved topic if possible
+    class_result = await db.execute(
+        select(AcademicClass)
+        .where(AcademicClass.lecturer_id == updated_topic.creator_id)
+        .order_by(AcademicClass.class_id.asc())
+        .limit(1)
+    )
+    lecturer_class = class_result.scalars().first()
+
+    if not lecturer_class:
+        fallback_result = await db.execute(
+            select(AcademicClass).order_by(AcademicClass.class_id.asc()).limit(1)
+        )
+        lecturer_class = fallback_result.scalars().first()
+
+    if not lecturer_class:
+        dept = None
+        if updated_topic.dept_id:
+            dept_result = await db.execute(
+                select(Department).where(Department.dept_id == updated_topic.dept_id)
+            )
+            dept = dept_result.scalars().first()
+        if not dept:
+            dept_result = await db.execute(select(Department).order_by(Department.dept_id.asc()).limit(1))
+            dept = dept_result.scalars().first()
+        if not dept:
+            dept = Department(dept_name="General Department")
+            db.add(dept)
+            await db.commit()
+            await db.refresh(dept)
+
+        semester_result = await db.execute(select(Semester).order_by(Semester.semester_id.asc()).limit(1))
+        semester = semester_result.scalars().first()
+        if not semester:
+            semester = Semester(semester_code="GEN-SEM-1", semester_name="General Semester", status="ACTIVE")
+            db.add(semester)
+            await db.commit()
+            await db.refresh(semester)
+
+        subject_result = await db.execute(select(Subject).order_by(Subject.subject_id.asc()).limit(1))
+        subject = subject_result.scalars().first()
+        if not subject:
+            subject = Subject(subject_code="GEN-101", subject_name="General Subject", dept_id=dept.dept_id)
+            db.add(subject)
+            await db.commit()
+            await db.refresh(subject)
+
+        class_result = await db.execute(select(AcademicClass).order_by(AcademicClass.class_id.asc()).limit(1))
+        lecturer_class = class_result.scalars().first()
+        if not lecturer_class:
+            lecturer_class = AcademicClass(
+                class_code="GEN-CLASS-1",
+                semester_id=semester.semester_id,
+                subject_id=subject.subject_id,
+                lecturer_id=updated_topic.creator_id,
+            )
+            db.add(lecturer_class)
+            await db.commit()
+            await db.refresh(lecturer_class)
+
+    if lecturer_class:
+        existing_project_result = await db.execute(
+            select(Project)
+            .where(
+                Project.topic_id == updated_topic.topic_id,
+                Project.class_id == lecturer_class.class_id
+            )
+        )
+        existing_project = existing_project_result.scalars().first()
+
+        if not existing_project:
+            new_project = Project(
+                project_name=updated_topic.title,
+                topic_id=updated_topic.topic_id,
+                class_id=lecturer_class.class_id,
+                status="active",
+            )
+            db.add(new_project)
+            await db.commit()
+            await db.refresh(new_project)
     
     return {
         "topic_id": updated_topic.topic_id,
@@ -199,6 +300,44 @@ async def reject_topic(
         "status": updated_topic.status,
         "rejected_by": current_user.full_name,
         "rejected_at": updated_topic.approved_at
+    }
+
+
+@router.delete("/{topic_id}")
+async def delete_topic(
+    topic_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Delete a topic
+    - Lecturers can delete their own topics
+    - Admin/Head Dept can delete any topic
+    """
+
+    dao = TopicDAO(db)
+    topic = await dao.get_topic_by_id(topic_id)
+
+    if not topic:
+        raise HTTPException(status_code=404, detail="Topic not found")
+
+    if current_user.role_id == 4:
+        if topic.creator_id != current_user.user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only delete your own topics"
+            )
+    elif current_user.role_id not in [1, 3]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to delete topics"
+        )
+
+    await dao.delete_topic(topic)
+
+    return {
+        "topic_id": topic_id,
+        "message": "Topic deleted"
     }
 
 # ============================================================================

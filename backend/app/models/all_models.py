@@ -75,6 +75,7 @@ class User(Base):
     role_id: Mapped[int] = mapped_column(Integer, ForeignKey("roles.role_id"))
     dept_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("departments.dept_id"), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    can_create_topics: Mapped[Optional[bool]] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships
@@ -263,7 +264,6 @@ class Team(Base):
     leader_id: Mapped[Optional[UUID]] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("users.user_id"), nullable=True) # Made nullable
     created_by: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("users.user_id"), nullable=True) # Added
     class_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("academic_classes.class_id"), nullable=True) # Made nullable
-    name: Mapped[Optional[str]] = mapped_column(String, nullable=True) # Added alias for ease, or we use team_name
     team_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # Added
     join_code: Mapped[Optional[str]] = mapped_column(String, nullable=True)

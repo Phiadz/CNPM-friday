@@ -46,7 +46,12 @@ class Settings(BaseSettings):
     @property
     def cors_origins_list(self) -> List[str]:
         """Convert CORS_ORIGINS string to list."""
-        return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
+        origins = []
+        for origin in self.CORS_ORIGINS.split(","):
+            cleaned = origin.strip().strip('"').strip("'")
+            if cleaned:
+                origins.append(cleaned)
+        return origins
     
     @property
     def BACKEND_CORS_ORIGINS(self) -> List[str]:

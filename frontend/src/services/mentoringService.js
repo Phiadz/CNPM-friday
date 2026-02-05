@@ -14,7 +14,7 @@ import api from './api';
  * @param {object} logData - { team_id, session_notes?, discussion_points?, meeting_date? }
  */
 export const createMentoringLog = async (logData) => {
-  const response = await api.post('/mentoring/', logData);
+  const response = await api.post('/mentoring/logs', logData);
   return response.data;
 };
 
@@ -23,7 +23,7 @@ export const createMentoringLog = async (logData) => {
  * @param {number} teamId - ID của team
  */
 export const getTeamMentoringLogs = async (teamId) => {
-  const response = await api.get('/mentoring/', {
+  const response = await api.get('/mentoring/logs', {
     params: { team_id: teamId }
   });
   return response.data;
@@ -34,7 +34,7 @@ export const getTeamMentoringLogs = async (teamId) => {
  * @param {number} logId - ID của log
  */
 export const getMentoringLog = async (logId) => {
-  const response = await api.get(`/mentoring/${logId}`);
+  const response = await api.get(`/mentoring/logs/${logId}`);
   return response.data;
 };
 
@@ -44,7 +44,7 @@ export const getMentoringLog = async (logId) => {
  * @param {object} updateData - { session_notes?, discussion_points?, feedback? }
  */
 export const updateMentoringLog = async (logId, updateData) => {
-  const response = await api.put(`/mentoring/${logId}`, updateData);
+  const response = await api.put(`/mentoring/logs/${logId}`, updateData);
   return response.data;
 };
 
@@ -53,7 +53,7 @@ export const updateMentoringLog = async (logId, updateData) => {
  * @param {number} logId - ID của log
  */
 export const deleteMentoringLog = async (logId) => {
-  await api.delete(`/mentoring/${logId}`);
+  await api.delete(`/mentoring/logs/${logId}`);
 };
 
 
@@ -64,8 +64,20 @@ export const deleteMentoringLog = async (logId) => {
  * @param {number} logId - ID của log
  * @param {object} requestData - { team_id, context? }
  */
-export const generateAISuggestions = async (logId, requestData) => {
-  const response = await api.post(`/mentoring/${logId}/ai-suggestions`, requestData);
+export const generateAISuggestions = async (teamId, requestData) => {
+  const response = await api.post('/mentoring/suggestions', requestData, {
+    params: { team_id: teamId }
+  });
+  return response.data;
+};
+
+export const getTeamProgress = async (teamId) => {
+  const response = await api.get(`/mentoring/team-progress/${teamId}`);
+  return response.data;
+};
+
+export const analyzePeerReviews = async (teamId, requestData = {}) => {
+  const response = await api.post(`/mentoring/analyze-reviews/${teamId}`, requestData);
   return response.data;
 };
 
@@ -76,5 +88,7 @@ export default {
   getMentoringLog,
   updateMentoringLog,
   deleteMentoringLog,
-  generateAISuggestions
+  generateAISuggestions,
+  getTeamProgress,
+  analyzePeerReviews
 };

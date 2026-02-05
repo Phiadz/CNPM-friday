@@ -4,7 +4,7 @@ import { Layout, Typography, Button, Avatar, Space, Badge, Input, message, Divid
 import {
     SettingOutlined, BellOutlined, SearchOutlined,
     DashboardOutlined, TeamOutlined, DesktopOutlined, TableOutlined,
-    FileTextOutlined, VideoCameraOutlined, SendOutlined, FormOutlined,
+    FileTextOutlined, VideoCameraOutlined, SendOutlined, FormOutlined, MessageOutlined,
     LogoutOutlined, LeftOutlined, RightOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -152,6 +152,9 @@ const MainLayout = ({ children }) => {
                                 </div>
                                 <div style={navButtonStyles('team', '/teams')} onClick={() => navigate('/teams')} onMouseEnter={() => setHoveredNav('team')} onMouseLeave={() => setHoveredNav(null)}>
                                     <TeamOutlined /> {!collapsed && <span style={{ marginLeft: 10 }}>Team Management</span>}
+                                </div>
+                                <div style={navButtonStyles('chat', '/chat')} onClick={() => navigate('/chat')} onMouseEnter={() => setHoveredNav('chat')} onMouseLeave={() => setHoveredNav(null)}>
+                                    <MessageOutlined /> {!collapsed && <span style={{ marginLeft: 10 }}>Team Chat</span>}
                                 </div>
                                 <div style={navButtonStyles('workspace', '/workspace')} onClick={() => message.info('Coming soon')} onMouseEnter={() => setHoveredNav('workspace')} onMouseLeave={() => setHoveredNav(null)}>
                                     <DesktopOutlined /> {!collapsed && <span style={{ marginLeft: 10 }}>Real-time Workspace</span>}

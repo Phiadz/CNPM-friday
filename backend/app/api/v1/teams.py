@@ -90,7 +90,7 @@ async def create_team(
             )
 
     new_team = Team(
-        name=team.name,
+        team_name=team.name,
         project_id=team.project_id,
         description=team.description,
         join_code=join_code,
@@ -130,7 +130,7 @@ async def create_team(
     
     return {
         "team_id": new_team.team_id,
-        "name": new_team.name,
+        "name": new_team.team_name,
         "project_id": new_team.project_id,
         "description": new_team.description,
         "join_code": new_team.join_code,
@@ -191,7 +191,7 @@ async def get_teams(
         
         teams_response.append({
             "team_id": t.team_id,
-            "name": t.name,
+            "name": t.team_name,
             "project_id": t.project_id,
             "description": t.description,
             "member_count": len(members),
@@ -279,7 +279,7 @@ async def get_team_detail(
     
     return {
         "team_id": team.team_id,
-        "name": team.name,
+        "name": team.team_name,
         "project_id": team.project_id,
         "description": team.description,
         "join_code": team.join_code if not team.is_finalized else None,

@@ -34,6 +34,62 @@ const StudentDashboard = () => {
     const navigate = useNavigate();
     const { user, token } = useAuth();
 
+    const canUseStorage = () => typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
+
+    const readStoredUser = () => {
+        if (!canUseStorage()) return null;
+        const raw = window.localStorage.getItem('user');
+        if (!raw) return null;
+        try {
+            return JSON.parse(raw);
+        } catch (_err) {
+            return null;
+        }
+    };
+
+    const buildScopedKey = (baseKey, userInfo) => {
+        const identifier = userInfo?.user_id || userInfo?.email || userInfo?.id;
+        return identifier ? `${baseKey}_${identifier}` : null;
+    };
+
+    const readActiveProjects = () => {
+        if (!canUseStorage()) return [];
+        const storedUser = readStoredUser();
+        const scopedKey = buildScopedKey('active_projects', storedUser || user);
+        const scopedRaw = scopedKey && window.localStorage.getItem(scopedKey);
+        const raw = scopedRaw || window.localStorage.getItem('active_projects');
+        if (!raw) return [];
+        try {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+                return parsed;
+            }
+            if (parsed && Array.isArray(parsed.items)) {
+                if (!scopedRaw && parsed._owner && storedUser?.email && parsed._owner !== storedUser.email) {
+                    return [];
+                }
+                return parsed.items;
+            }
+            return [];
+        } catch (_err) {
+            return [];
+        }
+    };
+
+    const hydrateActiveProjects = (items) => {
+        if (!Array.isArray(items) || items.length === 0) {
+            return [];
+        }
+        return items.map((item) => ({
+            id: item.id,
+            title: item.title || 'Untitled Project',
+            description: item.description || 'Claimed project',
+            progress: item.progress ?? 0,
+            status: item.status || 'active',
+            type: item.type || item.iconType || 'Project'
+        }));
+    };
+
     // Content-specific state
     const [activeProjects, setActiveProjects] = useState([]);
     const [timelineData, setTimelineData] = useState([]);
@@ -74,7 +130,8 @@ const StudentDashboard = () => {
                 { id: 5, date: 'Mon, 22 Nov', project: 'All Projects', description: 'Sprint Review', status: 'pending' }
             ];
 
-            setActiveProjects(roleBasedProjects);
+            const storedActive = hydrateActiveProjects(readActiveProjects());
+            setActiveProjects(storedActive.length ? storedActive : roleBasedProjects);
             setTimelineData(roleBasedTimeline);
 
             console.log(`Loaded dashboard for role: ${userRole}`);
@@ -84,6 +141,33 @@ const StudentDashboard = () => {
             fetchDashboardData();
         }
     }, [user, userRole, token]);
+
+    useEffect(() => {
+        const syncActiveProjects = (items) => {
+            const nextItems = hydrateActiveProjects(items || readActiveProjects());
+            if (nextItems.length) {
+                setActiveProjects(nextItems);
+            }
+        };
+
+        const handleActiveProjectsUpdated = (event) => {
+            syncActiveProjects(event?.detail?.items);
+        };
+
+        const handleStorage = (event) => {
+            if (event.key?.startsWith('active_projects') || event.key === 'active_projects') {
+                syncActiveProjects();
+            }
+        };
+
+        window.addEventListener('active-projects-updated', handleActiveProjectsUpdated);
+        window.addEventListener('storage', handleStorage);
+
+        return () => {
+            window.removeEventListener('active-projects-updated', handleActiveProjectsUpdated);
+            window.removeEventListener('storage', handleStorage);
+        };
+    }, []);
 
 
     const getProjectIcon = (project) => {

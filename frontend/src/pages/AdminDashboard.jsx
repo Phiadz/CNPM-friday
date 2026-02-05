@@ -11,7 +11,7 @@ import {
 } from '@ant-design/icons';
 
 // Import services
-import { subjectService, classService, userService } from '../services/api';
+import { subjectService, classService, userService, topicService } from '../services/api';
 import { useAuth } from '../components/AuthContext';
 
 const { Title, Text } = Typography;
@@ -21,7 +21,7 @@ const AdminDashboard = () => {
   const [form] = Form.useForm();
   const { logout } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
-  const [selectedKey, setSelectedKey] = useState('1'); // 1: Môn học, 2: Học kỳ, 3: Người dùng
+  const [selectedKey, setSelectedKey] = useState('1'); // 1: Môn học, 2: Học kỳ, 3: Người dùng, 4: Duyệt đề tài
 
   // Notification State
   const [isNotificationOpen, setNotificationOpen] = useState(false);
@@ -110,17 +110,25 @@ const AdminDashboard = () => {
         res = await classService.getAll(params);
       } else if (selectedKey === '3') {
         res = await userService.getAll(params);
+      } else if (selectedKey === '4') {
+        res = await topicService.getAll();
       }
 
       // Kiểm tra định dạng
-      const resultData = Array.isArray(res.data) ? res.data : [];
+      const resultData = Array.isArray(res.data)
+        ? res.data
+        : Array.isArray(res?.data?.topics)
+          ? res.data.topics
+          : [];
       setData(resultData);
 
       // Vì backend chưa trả về tổng số lượng, nên ta giả lập phân trang hoặc giả định đơn giản
       // Để phân trang thực tế, phản hồi backend cần bao gồm tổng số.
       // Triển khai hiện tại trả về toàn bộ danh sách hoặc danh sách giới hạn.
       // Ta sẽ giả định độ dài dữ liệu là tổng số cho phiên bản đơn giản này trừ khi backend hỗ trợ đếm.
-      setTotal(resultData.length); // Placeholder, improving later
+      const headerTotal = res?.headers?.['x-total-count'];
+      const totalCount = headerTotal ? Number(headerTotal) : (res?.data?.total ?? resultData.length);
+      setTotal(totalCount); // Placeholder, improving later
 
     } catch (err) {
       console.error("API Error:", err);
@@ -177,6 +185,33 @@ const AdminDashboard = () => {
   };
 
   // --- CỘT ---
+  const handleTopicApproval = async (topicId, action) => {
+    try {
+      if (action === 'approve') {
+        await topicService.approve(topicId);
+        message.success('Topic approved');
+      } else {
+        await topicService.reject(topicId);
+        message.success('Topic rejected');
+      }
+      fetchData();
+    } catch (err) {
+      message.error('Failed to update topic status');
+    }
+  };
+
+  const handlePermissionToggle = async (record, checked) => {
+    try {
+      await userService.updateTopicPermission(record.user_id, checked);
+      setData((prev) => prev.map((item) => (
+        item.user_id === record.user_id ? { ...item, can_create_topics: checked } : item
+      )));
+      message.success('Permission updated');
+    } catch (err) {
+      message.error('Failed to update permission');
+    }
+  };
+
   const getColumns = () => {
     const commonActions = {
       title: 'Actions',
@@ -216,7 +251,55 @@ const AdminDashboard = () => {
         { title: 'Email', dataIndex: 'email', key: 'email' },
         { title: 'Full Name', dataIndex: 'full_name', key: 'full_name' },
         { title: 'Role', dataIndex: 'role_name', key: 'role_name' },
+        {
+          title: 'Topic Permission',
+          key: 'can_create_topics',
+          render: (_, record) => (
+            <Space>
+              {record.role_name?.toLowerCase() === 'lecturer' ? (
+                <Button
+                  size="small"
+                  type={record.can_create_topics ? 'primary' : 'default'}
+                  onClick={() => handlePermissionToggle(record, !record.can_create_topics)}
+                >
+                  {record.can_create_topics ? 'Allowed' : 'Blocked'}
+                </Button>
+              ) : (
+                <Text type="secondary">N/A</Text>
+              )}
+            </Space>
+          )
+        },
         { title: 'Status', dataIndex: 'is_active', key: 'is_active', render: (val) => val ? <Badge status="success" text="Active" /> : <Badge status="error" text="Inactive" /> }
+      ];
+    } else if (selectedKey === '4') { // TOPIC APPROVAL
+      return [
+        { title: 'Title', dataIndex: 'title', key: 'title' },
+        { title: 'Creator', dataIndex: 'created_by', key: 'created_by' },
+        { title: 'Status', dataIndex: 'status', key: 'status' },
+        {
+          title: 'Actions',
+          key: 'actions',
+          render: (_, record) => (
+            <Space>
+              <Button
+                size="small"
+                type="primary"
+                onClick={() => handleTopicApproval(record.topic_id, 'approve')}
+              >
+                {record.status === 'APPROVED' ? 'Create project' : 'Approve'}
+              </Button>
+              <Button
+                size="small"
+                danger
+                disabled={record.status === 'REJECTED'}
+                onClick={() => handleTopicApproval(record.topic_id, 'reject')}
+              >
+                Reject
+              </Button>
+            </Space>
+          )
+        }
       ];
     }
     return [];
@@ -227,6 +310,7 @@ const AdminDashboard = () => {
       case '1': return 'Subject Management';
       case '2': return 'Class Management';
       case '3': return 'User Management';
+      case '4': return 'Topic Approval';
       default: return 'Dashboard';
     }
   };
@@ -251,7 +335,7 @@ const AdminDashboard = () => {
             { key: '1', icon: <BookOutlined />, label: 'Subject Management' },
             { key: '2', icon: <TeamOutlined />, label: 'Class Management' },
             { key: '3', icon: <UserOutlined />, label: 'User Management' },
-            { key: '4', icon: <SettingOutlined />, label: 'System Settings' },
+            { key: '4', icon: <SettingOutlined />, label: 'Topic Approval' },
           ]}
         />
       </Sider>
@@ -301,7 +385,7 @@ const AdminDashboard = () => {
                     allowClear
                     style={{ width: 300, borderRadius: '6px' }}
                   />
-                  {selectedKey !== '3' && (
+                  {selectedKey !== '3' && selectedKey !== '4' && (
                     <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditingKey(null); form.resetFields(); setIsModalOpen(true); }} size="large">
                       Add New
                     </Button>
@@ -314,7 +398,7 @@ const AdminDashboard = () => {
               loading={loading}
               columns={getColumns()}
               dataSource={data}
-              rowKey={(record) => record.subject_id || record.class_id || record.user_id}
+              rowKey={(record) => record.subject_id || record.class_id || record.user_id || record.topic_id}
               pagination={{
                 current: pagination.current,
                 pageSize: pagination.pageSize,

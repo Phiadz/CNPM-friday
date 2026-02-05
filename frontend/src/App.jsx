@@ -12,6 +12,9 @@ import TeamManagement from './pages/TeamManagement';
 import TeamDetail from './pages/TeamDetail';
 import KanBanBoard from './pages/KanBanBoard';
 import TeamMeetings from './pages/TeamMeetings';
+import TeamChat from './pages/TeamChat';
+import MentoringPage from './pages/MentoringPage';
+import EvaluationPage from './pages/EvaluationPage';
 import SubmissionsPage from './pages/SubmissionsPage';
 import PeerReviewsPage from './pages/PeerReviewsPage';
 import { useAuth, getDefaultDashboardPath, resolveRoleName } from './components/AuthContext';
@@ -93,12 +96,15 @@ const App = () => {
       <Route path="/student" element={<ProtectedRoute allowedRoles={['STUDENT']}><StudentDashboard /></ProtectedRoute>} />
       <Route path="/lecturer" element={<ProtectedRoute allowedRoles={['LECTURER']}><LecturerDashboard /></ProtectedRoute>} />
       <Route path="/topics" element={<ProtectedRoute><TopicManagement /></ProtectedRoute>} />
+      <Route path="/mentoring" element={<ProtectedRoute allowedRoles={['LECTURER', 'ADMIN', 'STAFF', 'HEAD_DEPT']}><MentoringPage /></ProtectedRoute>} />
+      <Route path="/evaluations" element={<ProtectedRoute allowedRoles={['LECTURER', 'ADMIN', 'STAFF', 'HEAD_DEPT']}><EvaluationPage /></ProtectedRoute>} />
       <Route path="/projects" element={<ProtectedRoute><ProjectListView /></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute><UserProfile /></ProtectedRoute>} />
       <Route path="/teams" element={<ProtectedRoute><TeamManagement /></ProtectedRoute>} />
       <Route path="/teams/:teamId" element={<ProtectedRoute><TeamDetail /></ProtectedRoute>} />
       <Route path="/kanban" element={<ProtectedRoute><KanBanBoard /></ProtectedRoute>} />
       <Route path="/video" element={<ProtectedRoute><TeamMeetings /></ProtectedRoute>} />
+      <Route path="/chat" element={<ProtectedRoute><TeamChat /></ProtectedRoute>} />
       <Route path="/submission" element={<ProtectedRoute><SubmissionsPage /></ProtectedRoute>} />
       <Route path="/peer-review" element={<ProtectedRoute><PeerReviewsPage /></ProtectedRoute>} />
       <Route path="/admin" element={<ProtectedRoute allowedRoles={adminRoleGate}><AdminDashboard /></ProtectedRoute>} />

@@ -121,6 +121,26 @@ export const onNewMessage = (callback) => {
 };
 
 /**
+ * Lắng nghe tin nhắn được cập nhật
+ * @param {function} callback - Handler function(message)
+ */
+export const onMessageUpdated = (callback) => {
+    if (!socket) return;
+    socket.on('message_updated', callback);
+    listeners.set('message_updated', callback);
+};
+
+/**
+ * Lắng nghe tin nhắn bị xóa
+ * @param {function} callback - Handler function({ message_id, channel_id })
+ */
+export const onMessageDeleted = (callback) => {
+    if (!socket) return;
+    socket.on('message_deleted', callback);
+    listeners.set('message_deleted', callback);
+};
+
+/**
  * Lắng nghe typing indicator
  * @param {function} callback - Handler function({ user_id, user_name, channel_id })
  */

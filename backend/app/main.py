@@ -36,6 +36,7 @@ if allowed_origins:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["X-Total-Count"],
     )
 
 # Mount API routes with /api/v1 prefix

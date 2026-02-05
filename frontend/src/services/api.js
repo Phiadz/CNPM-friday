@@ -3,7 +3,11 @@ import axios from 'axios';
 // 1. Define Base URL
 // For local development with Docker: http://localhost:8000/api/v1
 // Backend startup command: uvicorn app.main:app --reload (run from backend directory)
-const BASE_URL = 'http://127.0.0.1:8000/api/v1';
+const RAW_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1';
+const normalizedBaseUrl = RAW_BASE_URL.replace(/\/+$/, '');
+const BASE_URL = normalizedBaseUrl.endsWith('/api/v1')
+  ? normalizedBaseUrl
+  : `${normalizedBaseUrl}/api/v1`;
 
 const api = axios.create({
   baseURL: BASE_URL,
@@ -41,6 +45,12 @@ export const userService = {
   // Use for Dashboard
   getMe: async () => {
     return api.get('/users/me');
+  },
+  getAll: async (params) => {
+    return api.get('/users', { params });
+  },
+  updateTopicPermission: async (userId, canCreateTopics) => {
+    return api.patch(`/users/${userId}/topic-permission`, { can_create_topics: canCreateTopics });
   },
   // Keep existing methods if needed by other parts, or assume they are replaced by profileService
   // For now, mapping what was requested.
@@ -138,6 +148,12 @@ export const subjectService = {
   create: async (data) => api.post('/subjects', data),
   update: async (id, data) => api.put(`/subjects/${id}`, data),
   delete: async (id) => api.delete(`/subjects/${id}`)
+};
+
+export const topicService = {
+  getAll: async (params) => api.get('/topics', { params }),
+  approve: async (topicId) => api.patch(`/topics/${topicId}/approve`),
+  reject: async (topicId) => api.patch(`/topics/${topicId}/reject`),
 };
 
 export const classService = {

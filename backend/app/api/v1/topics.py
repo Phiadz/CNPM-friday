@@ -322,6 +322,51 @@ async def reject_topic(
     }
 
 
+@router.delete("/{topic_id}", status_code=200)
+async def delete_topic(
+    topic_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Delete a topic
+    - Lecturers can delete their own topics
+    - Admin/Head Dept can delete any topic
+    """
+
+    # Get topic
+    query = select(Topic).where(Topic.topic_id == topic_id)
+    result = await db.execute(query)
+    topic = result.scalar()
+
+    if not topic:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Topic not found"
+        )
+
+    # Permission checks
+    if current_user.role_id == 4:
+        if topic.creator_id != current_user.user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only delete your own topics"
+            )
+    elif current_user.role_id not in [1, 3]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to delete topics"
+        )
+
+    await db.delete(topic)
+    await db.commit()
+
+    return {
+        "topic_id": topic_id,
+        "message": "Topic deleted"
+    }
+
+
 # ============================================================================
 # EVALUATION ENDPOINTS
 # ============================================================================

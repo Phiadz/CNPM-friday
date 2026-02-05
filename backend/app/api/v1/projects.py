@@ -77,7 +77,11 @@ async def list_projects(
     """
     List all projects.
     """
-    query = select(Project)
+    query = (
+        select(Project, Topic, User)
+        .join(Topic, Project.topic_id == Topic.topic_id)
+        .join(User, Topic.creator_id == User.user_id, isouter=True)
+    )
     
     if class_id is not None:
         query = query.where(Project.class_id == class_id)
@@ -91,7 +95,24 @@ async def list_projects(
         query = query.where(Project.claimed_by_id == None)
     
     result = await db.execute(query)
-    return result.scalars().all()
+    rows = result.all()
+
+    response_items = []
+    for project, topic, creator in rows:
+        response_items.append(ProjectResponse(
+            project_id=project.project_id,
+            topic_id=project.topic_id,
+            class_id=project.class_id,
+            project_name=project.project_name,
+            status=project.status,
+            claimed_by_id=project.claimed_by_id,
+            claimed_at=project.claimed_at,
+            topic_title=topic.title if topic else None,
+            topic_description=topic.description if topic else None,
+            proposer_name=creator.full_name if creator else None,
+        ))
+
+    return response_items
 
 
 @router.patch("/{project_id}/claim", response_model=ProjectResponse)

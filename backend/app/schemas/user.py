@@ -78,6 +78,15 @@ class UserResponse(UserBase):
     user_id: UUID
     role_id: int
     avatar_url: Optional[str] = None
+    can_create_topics: Optional[bool] = None
 
     class Config:
         from_attributes = True  # Để đọc được dữ liệu từ SQLAlchemy model
+
+
+class UserAdminResponse(UserResponse):
+    role_name: Optional[str] = None
+
+
+class UserTopicPermissionUpdate(BaseModel):
+    can_create_topics: bool

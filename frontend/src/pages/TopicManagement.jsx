@@ -746,7 +746,7 @@ const TopicManagement = () => {
                     <Button size="small" onClick={() => openTopicDetail(record)}>View</Button>
                     <Button size="small" onClick={() => openEvaluationForm(record)}>Evaluate</Button>
                     <Button size="small" onClick={() => openEditTopic(record)}>Edit</Button>
-                    <Button size="small" danger onClick={() => handleDeleteTopic(record.key)}>Delete</Button>
+                    <Button size="small" danger onClick={() => handleDeleteTopic(record)}>Delete</Button>
                 </Space>
             ),
         },
@@ -900,9 +900,28 @@ const TopicManagement = () => {
         topicForm.resetFields();
     };
 
-    const handleDeleteTopic = (key) => {
-        setTopicRows((prev) => prev.filter((item) => item.key !== key));
-        message.success('Topic deleted');
+    const handleDeleteTopic = async (record) => {
+        if (!record?.topicId) {
+            message.error('Missing topic id');
+            return;
+        }
+        try {
+            await lecturerTopicsService.deleteTopic(record.topicId);
+            setTopicRows((prev) => prev.filter((item) => item.topicId !== record.topicId));
+            message.success('Topic deleted');
+        } catch (error) {
+            if (isAuthError(error)) {
+                message.error('Session expired. Please sign in again.');
+                logout();
+                navigate('/login', { replace: true });
+                return;
+            }
+            if (isForbiddenError(error)) {
+                message.error(extractErrorMessage(error, 'You do not have permission to delete this topic.'));
+                return;
+            }
+            message.error(extractErrorMessage(error, 'Failed to delete topic'));
+        }
     };
 
     const handleApproveProposal = async (record) => {
@@ -1154,7 +1173,17 @@ const TopicManagement = () => {
                                 <Button
                                     type="text"
                                     block
+                                    icon={<CloudUploadOutlined />}
+                                    onClick={() => navigate('/mentoring')}
+                                    {...navButtonInteractions('mentoring')}
+                                >
+                                    {!collapsed && "AI Mentoring"}
+                                </Button>
+                                <Button
+                                    type="text"
+                                    block
                                     icon={<CheckSquareOutlined />}
+                                    onClick={() => navigate('/evaluations')}
                                     {...navButtonInteractions('grading')}
                                 >
                                     {!collapsed && "Grading & Feedback"}

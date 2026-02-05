@@ -807,7 +807,17 @@ const LecturerDashboard = () => {
                                 <Button
                                     type="text"
                                     block
+                                    icon={<CloudUploadOutlined />}
+                                    onClick={() => navigate('/mentoring')}
+                                    {...navButtonInteractions('mentoring')}
+                                >
+                                    {!collapsed && "AI Mentoring"}
+                                </Button>
+                                <Button
+                                    type="text"
+                                    block
                                     icon={<CheckSquareOutlined />}
+                                    onClick={() => navigate('/evaluations')}
                                     {...navButtonInteractions('grading')}
                                 >
                                     {!collapsed && "Grading & Feedback"}

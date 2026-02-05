@@ -21,7 +21,12 @@ const TeamManagement = () => {
         setLoading(true);
         try {
             const res = await studentTeamsService.listTeams();
-            setTeams(res.data || []);
+            const payload = Array.isArray(res?.data?.teams)
+                ? res.data.teams
+                : Array.isArray(res?.data)
+                    ? res.data
+                    : [];
+            setTeams(payload);
         } catch (error) {
             console.error("Failed to fetch teams", error);
             message.error("Failed to load teams");
