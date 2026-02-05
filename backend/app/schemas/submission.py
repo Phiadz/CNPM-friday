@@ -125,6 +125,10 @@ class EvaluationResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+# Rebuild model to resolve forward reference
+SubmissionWithEvaluation.model_rebuild()
+
+
 class SubmissionListResponse(BaseModel):
     """Response schema for listing submissions."""
     submission_id: int

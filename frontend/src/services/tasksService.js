@@ -1,8 +1,10 @@
 import apiClient from './apiClient';
 
 export const tasksService = {
-    createSprint: (payload) => apiClient.post('/sprints', payload),
-    getSprint: (sprintId) => apiClient.get(`/sprints/${sprintId}`),
+    // Sprint endpoints - note: mounted at /tasks so full path is /tasks/sprints
+    createSprint: (payload) => apiClient.post('/tasks/sprints', null, { params: payload }),
+    getSprint: (sprintId) => apiClient.get(`/tasks/sprints/${sprintId}`),
+    listSprints: (teamId) => apiClient.get('/tasks/sprints', { params: { team_id: teamId } }),
 
     // Create new task
     createTask: (payload) => apiClient.post('/tasks', payload),
@@ -20,10 +22,13 @@ export const tasksService = {
     getAllTasks: () => apiClient.get('/tasks'),
 
     // Get tasks by sprint (convenience wrapper)
-    getSprintTasks: (sprintId) => apiClient.get('/tasks', { params: { sprint_id: sprintId } }),
+    getSprintTasks: (sprintId) => apiClient.get(`/tasks/sprints/${sprintId}/tasks`),
 
-    // Change status (convenience wrapper)
-    changeStatus: (taskId, status) => apiClient.put(`/tasks/${taskId}`, { status }),
+    // Change status (convenience wrapper) - uses PATCH endpoint with validation
+    changeStatus: (taskId, status) => apiClient.patch(`/tasks/${taskId}/status`, null, { params: { new_status: status } }),
+
+    // Assign task 
+    assignTask: (taskId, userId) => apiClient.patch(`/tasks/${taskId}/assign`, null, { params: { user_id: userId } }),
 };
 
 export default tasksService;

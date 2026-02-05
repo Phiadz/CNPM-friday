@@ -12,7 +12,8 @@ import {
     LogoutOutlined,
     LeftOutlined,
     RightOutlined,
-    CloudUploadOutlined
+    CloudUploadOutlined,
+    FolderOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useAuth, resolveRoleName } from './AuthContext';
@@ -270,6 +271,15 @@ const LecturerLayout = ({ children }) => {
                                     {...navButtonInteractions('grading', { active: isActive('/evaluations') })}
                                 >
                                     {!collapsed && "Grading & Feedback"}
+                                </Button>
+                                <Button
+                                    type="text"
+                                    block
+                                    icon={<FolderOutlined />}
+                                    onClick={() => navigate('/resources')}
+                                    {...navButtonInteractions('resources', { active: isActive('/resources') })}
+                                >
+                                    {!collapsed && "Files & Documents"}
                                 </Button>
                             </Space>
                         </div>

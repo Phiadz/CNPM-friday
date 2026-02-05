@@ -5,7 +5,7 @@ import {
     SettingOutlined, BellOutlined, SearchOutlined,
     DashboardOutlined, TeamOutlined, DesktopOutlined, TableOutlined,
     FileTextOutlined, VideoCameraOutlined, SendOutlined, FormOutlined, MessageOutlined,
-    LogoutOutlined, LeftOutlined, RightOutlined
+    LogoutOutlined, LeftOutlined, RightOutlined, FolderOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useAuth, resolveRoleName } from './AuthContext';
@@ -173,6 +173,9 @@ const MainLayout = ({ children }) => {
                                 </div>
                                 <div style={navButtonStyles('peer', '/peer-review')} onClick={() => navigate('/peer-review')} onMouseEnter={() => setHoveredNav('peer')} onMouseLeave={() => setHoveredNav(null)}>
                                     <FileTextOutlined /> {!collapsed && <span style={{ marginLeft: 10 }}>Peer Review Form</span>}
+                                </div>
+                                <div style={navButtonStyles('resources', '/resources')} onClick={() => navigate('/resources')} onMouseEnter={() => setHoveredNav('resources')} onMouseLeave={() => setHoveredNav(null)}>
+                                    <FolderOutlined /> {!collapsed && <span style={{ marginLeft: 10 }}>Files & Documents</span>}
                                 </div>
                             </Space>
                         </div>

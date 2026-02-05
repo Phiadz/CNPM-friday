@@ -389,11 +389,20 @@ const StudentDashboard = () => {
                 }
                 extra={
                     <Space>
-                        <Button type="text" size="small">
+                        <Button type="text" size="small" onClick={() => navigate('/resources')}>
                             View All Files
                         </Button>
                         <Upload
-                            beforeUpload={handleFileUpload}
+                            beforeUpload={(file) => {
+                                const fileData = {
+                                    name: file.name,
+                                    size: file.size,
+                                    type: file.type,
+                                    uid: file.uid
+                                };
+                                navigate('/resources', { state: { fileData } });
+                                return false;
+                            }}
                             showUploadList={false}
                             accept=".pdf,.doc,.docx,.json,.csv,.fig,.xd,.png,.jpg,.jpeg"
                         >
