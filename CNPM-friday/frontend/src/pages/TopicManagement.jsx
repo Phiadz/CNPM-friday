@@ -123,8 +123,6 @@ const formatTopicStatus = (value) => {
 
 const buildTopicRow = (topic) => {
     const rawStatus = normalizeStatus(topic?.status);
-    const hasApproval = Boolean(topic?.approved_at || topic?.approved_by);
-    const effectiveStatus = hasApproval && rawStatus !== 'APPROVED' ? 'APPROVED' : rawStatus;
     return {
         key: String(topic?.topic_id ?? topic?.id ?? Math.random()),
         topicId: topic?.topic_id ?? topic?.id,
@@ -133,8 +131,8 @@ const buildTopicRow = (topic) => {
         description: topic?.description || '',
         requirements: topic?.requirements || '',
         team: topic?.team || topic?.team_name || '-',
-        status: formatTopicStatus(effectiveStatus),
-        rawStatus: effectiveStatus,
+        status: formatTopicStatus(rawStatus),
+        rawStatus,
         createdAt: topic?.created_at,
         approvedBy: topic?.approved_by,
         approvedAt: topic?.approved_at,
@@ -625,8 +623,7 @@ const TopicManagement = () => {
     const [topicRows, setTopicRows] = useState(initialTopics);
 
     const proposalRows = useMemo(() => topicRows.filter((item) => {
-        const hasApproval = Boolean(item.approvedBy || item.approvedAt);
-        const status = hasApproval ? 'APPROVED' : (item.rawStatus || normalizeStatus(item.status));
+        const status = item.rawStatus || normalizeStatus(item.status);
         return status === 'DRAFT' || status === 'PENDING';
     }), [topicRows]);
 
@@ -659,14 +656,6 @@ const TopicManagement = () => {
 
     useEffect(() => {
         handleRefreshTopics();
-    }, [handleRefreshTopics]);
-
-    useEffect(() => {
-        const intervalId = setInterval(() => {
-            handleRefreshTopics();
-        }, 30000);
-
-        return () => clearInterval(intervalId);
     }, [handleRefreshTopics]);
 
     const filteredTopics = useMemo(() => {
@@ -745,11 +734,7 @@ const TopicManagement = () => {
             title: 'Status',
             dataIndex: 'status',
             key: 'status',
-            render: (_value, record) => {
-                const hasApproval = Boolean(record.approvedBy || record.approvedAt);
-                const effectiveStatus = hasApproval ? 'APPROVED' : (record.rawStatus || record.status);
-                return getStatusTag(effectiveStatus);
-            },
+            render: (_value, record) => getStatusTag(record.rawStatus || record.status),
         },
         {
             title: 'Activity',
@@ -915,29 +900,9 @@ const TopicManagement = () => {
         topicForm.resetFields();
     };
 
-    const handleDeleteTopic = async (key) => {
-        const target = topicRows.find((item) => item.key === key);
-        if (!target?.topicId) {
-            message.error('Missing topic id');
-            return;
-        }
-        try {
-            await lecturerTopicsService.deleteTopic(target.topicId);
-            setTopicRows((prev) => prev.filter((item) => item.key !== key));
-            message.success('Topic deleted');
-        } catch (error) {
-            if (isAuthError(error)) {
-                message.error('Session expired. Please sign in again.');
-                logout();
-                navigate('/login', { replace: true });
-                return;
-            }
-            if (isForbiddenError(error)) {
-                message.error(extractErrorMessage(error, 'You do not have permission to delete topics.'));
-                return;
-            }
-            message.error(extractErrorMessage(error, 'Failed to delete topic'));
-        }
+    const handleDeleteTopic = (key) => {
+        setTopicRows((prev) => prev.filter((item) => item.key !== key));
+        message.success('Topic deleted');
     };
 
     const handleApproveProposal = async (record) => {

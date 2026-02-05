@@ -77,7 +77,7 @@ async def list_projects(
     """
     List all projects.
     """
-    query = select(Project).options(selectinload(Project.topic))
+    query = select(Project)
     
     if class_id is not None:
         query = query.where(Project.class_id == class_id)
@@ -150,7 +150,6 @@ async def get_project(
     """Get project details."""
     result = await db.execute(
         select(Project)
-        .options(selectinload(Project.topic))
         .where(Project.project_id == project_id)
     )
     project = result.scalar_one_or_none()
