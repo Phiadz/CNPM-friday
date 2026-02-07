@@ -47,12 +47,6 @@ async def create_topic(
             detail="Topic creation permission required"
         )
     
-    if current_user.dept_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Your account has no department assigned"
-        )
-
     dao = TopicDAO(db)
     new_topic = await dao.create_topic(topic, current_user.user_id, current_user.dept_id)
     

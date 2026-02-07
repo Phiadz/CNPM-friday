@@ -15,11 +15,13 @@ const SubmissionsPage = () => {
     const [submissionType, setSubmissionType] = useState('file'); // 'file' or 'github'
     const [fileList, setFileList] = useState([]);
     const [teams, setTeams] = useState([]);
+    const [activeProjects, setActiveProjects] = useState([]);
     const [selectedTeamId, setSelectedTeamId] = useState(null);
     const [projectInfo, setProjectInfo] = useState({
-        projectName: '',
+        TeamName: '',
         teamMembers: '',
-        description: ''
+        description: '',
+        githubLink: ''
     });
     const [loading, setLoading] = useState(false);
 
@@ -33,7 +35,7 @@ const SubmissionsPage = () => {
             if (!user) return;
             try {
                 const res = await teamService.getAll();
-                const userTeams = res.data || [];
+                const userTeams = (res.data.teams || []).filter(t => t.is_member);
                 setTeams(userTeams);
             } catch (error) {
                 console.error("Failed to fetch teams", error);
@@ -42,13 +44,72 @@ const SubmissionsPage = () => {
         fetchUserTeams();
     }, [user]);
 
+    useEffect(() => {
+        if (!user) return;
+        const canUseStorage = () => typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
+        const readStoredUser = () => {
+            if (!canUseStorage()) return null;
+            const raw = window.localStorage.getItem('user');
+            if (!raw) return null;
+            try {
+                return JSON.parse(raw);
+            } catch (_err) {
+                return null;
+            }
+        };
+        const buildScopedKey = (baseKey, userInfo) => {
+            const identifier = userInfo?.user_id || userInfo?.email || userInfo?.id;
+            return identifier ? `${baseKey}_${identifier}` : null;
+        };
+        const readActiveProjects = () => {
+            if (!canUseStorage()) return [];
+            const storedUser = readStoredUser();
+            const scopedKey = buildScopedKey('active_projects', storedUser || user);
+            const scopedRaw = scopedKey && window.localStorage.getItem(scopedKey);
+            const raw = scopedRaw || window.localStorage.getItem('active_projects');
+            if (!raw) return [];
+            try {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) return parsed;
+                if (parsed && Array.isArray(parsed.items)) {
+                    if (!scopedRaw && parsed._owner && storedUser?.email && parsed._owner !== storedUser.email) {
+                        return [];
+                    }
+                    return parsed.items;
+                }
+                return [];
+            } catch (_err) {
+                return [];
+            }
+        };
+
+        const items = readActiveProjects().map((item) => ({
+            id: item.id,
+            title: item.title || 'Untitled Project'
+        }));
+        setActiveProjects(items);
+    }, [user]);
+
     const handleProjectChange = async (value) => {
         const teamId = value;
         setSelectedTeamId(teamId);
 
+        const fallbackProject = typeof teamId === 'string' && teamId.startsWith('project:')
+            ? activeProjects.find((p) => `project:${p.id}` === teamId)
+            : null;
+        if (fallbackProject) {
+            setSelectedTeamId(null);
+            setProjectInfo(prev => ({
+                ...prev,
+                projectName: fallbackProject.title
+            }));
+            message.info('Create or join a team to submit this project.');
+            return;
+        }
+
         const selectedTeam = teams.find(t => t.team_id === teamId || t.id === teamId);
         if (selectedTeam) {
-            const projName = selectedTeam.project?.topic || selectedTeam.project?.title || selectedTeam.team_name || 'Unknown Project';
+            const projName = selectedTeam.project?.topic || selectedTeam.project?.title || selectedTeam.name || selectedTeam.team_name || 'Unknown Project';
             let membersStr = '';
             if (selectedTeam.members && Array.isArray(selectedTeam.members)) {
                 membersStr = selectedTeam.members.map(m => m.full_name || m.name || m.email).join(', ');
@@ -70,6 +131,20 @@ const SubmissionsPage = () => {
                 projectName: projName,
                 teamMembers: membersStr
             }));
+
+            if (selectedTeam.project_id) {
+                try {
+                    const projectRes = await projectService.getDetail(selectedTeam.project_id);
+                    const project = projectRes.data;
+                    const displayName = project?.project_name || project?.topic_title || projName;
+                    setProjectInfo(prev => ({
+                        ...prev,
+                        projectName: displayName
+                    }));
+                } catch (error) {
+                    console.error('Failed to fetch project/milestones', error);
+                }
+            }
         }
     };
 
@@ -85,6 +160,16 @@ const SubmissionsPage = () => {
         setLoading(true);
         try {
             // Validate
+            if (!selectedTeamId) {
+                message.error('Please select a project/team');
+                setLoading(false);
+                return;
+            }
+            if (!projectInfo.description || !projectInfo.description.trim()) {
+                message.error('Please enter description');
+                setLoading(false);
+                return;
+            }
             if (submissionType === 'file' && fileList.length === 0) {
                 message.error('Please upload a file');
                 setLoading(false);
@@ -96,26 +181,50 @@ const SubmissionsPage = () => {
                 return;
             }
 
-            const formData = new FormData();
-            formData.append('title', projectInfo.projectName);
-            formData.append('content', projectInfo.description || '');
-            formData.append('team_id', selectedTeamId);
-
-            if (submissionType === 'file' && fileList.length > 0) {
-                formData.append('file_url', fileList[0].originFileObj || fileList[0]);
-                formData.append('file', fileList[0].originFileObj || fileList[0]);
-            } else if (submissionType === 'github') {
-                formData.append('file_url', projectInfo.githubLink);
+            let fileUrl = null;
+            if (submissionType === 'file') {
+                const fileObject = fileList[0]?.originFileObj || fileList[0];
+                if (!fileObject) {
+                    message.error('Missing file to upload');
+                    setLoading(false);
+                    return;
+                }
+                const uploadResult = await submissionService.uploadSubmissionFile(fileObject);
+                fileUrl = uploadResult?.file_url || null;
             }
 
-            // Call service
-            await submissionService.createSubmission(formData);
+            const payload = {
+                team_id: selectedTeamId,
+                content: projectInfo.description.trim(),
+                file_url: submissionType === 'github' ? projectInfo.githubLink : fileUrl,
+            };
 
-            message.success('Submission submitted successfully!');
+            try {
+                await submissionService.createSubmission(payload);
+                message.success('Submission submitted successfully!');
+            } catch (createError) {
+                const detail = createError?.response?.data?.detail || '';
+                if (detail.includes('A submission already exists for this checkpoint')) {
+                    const existingList = await submissionService.getSubmissions({ team_id: selectedTeamId, limit: 1 });
+                    const existing = Array.isArray(existingList) ? existingList[0] : existingList?.[0];
+                    if (!existing?.submission_id) {
+                        throw createError;
+                    }
+                    await submissionService.updateSubmission(existing.submission_id, {
+                        content: payload.content,
+                        file_url: payload.file_url,
+                    });
+                    message.success('Submission updated successfully!');
+                } else {
+                    throw createError;
+                }
+            }
             // Reset or redirect
+            setFileList([]);
         } catch (error) {
             console.error(error);
-            message.error('Failed to submit');
+            const detail = error?.response?.data?.detail;
+            message.error(detail || 'Failed to submit');
         } finally {
             setLoading(false);
         }
@@ -148,8 +257,7 @@ const SubmissionsPage = () => {
                     <Card
                         title={<Space><CloudUploadOutlined /> <span>Upload Submission</span></Space>}
                         style={{ borderRadius: 12, height: '100%', background: '#d9d9d9', border: 'none' }} // Grey background as per design
-                        headStyle={{ borderBottom: '1px solid #bfbfbf' }}
-                        bodyStyle={{ padding: 24 }}
+                        styles={{ header: { borderBottom: '1px solid #bfbfbf' }, body: { padding: 24 } }}
                     >
                         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 24 }}>
                             <Radio.Group
@@ -215,23 +323,30 @@ const SubmissionsPage = () => {
                     <Card
                         title={<Space><FileTextOutlined /> <span>Submission Details</span></Space>}
                         style={{ borderRadius: 12, height: '100%', background: '#d9d9d9', border: 'none' }}
-                        headStyle={{ borderBottom: '1px solid #bfbfbf' }}
-                        bodyStyle={{ padding: 24 }}
+                        styles={{ header: { borderBottom: '1px solid #bfbfbf' }, body: { padding: 24 } }}
                     >
                         <Form layout="vertical" onValuesChange={handleFormChange}>
                             <Form.Item label={<Space><ProjectOutlined /> <Text strong>Project Name</Text></Space>}>
                                 <Select
-                                    placeholder="Select a project"
+                                    placeholder="Select a team/project"
                                     onChange={handleProjectChange}
                                     style={{ borderRadius: 8, height: 40 }}
                                 >
-                                    {teams.filter(t => t.project).map(team => (
-                                        <Select.Option key={team.team_id || team.id} value={team.team_id || team.id}>
-                                            {team.project?.topic || team.project?.title || team.team_name}
-                                        </Select.Option>
-                                    ))}
+                                    {(teams.length > 0 ? teams : activeProjects).map(item => {
+                                        const isTeam = teams.length > 0;
+                                        const value = isTeam ? (item.team_id || item.id) : `project:${item.id}`;
+                                        const label = isTeam
+                                            ? (item.project?.topic || item.project?.title || item.name || item.team_name || 'Unnamed Team')
+                                            : (item.title || 'Untitled Project');
+                                        return (
+                                            <Select.Option key={value} value={value} disabled={!isTeam}>
+                                                {label}
+                                            </Select.Option>
+                                        );
+                                    })}
                                 </Select>
                             </Form.Item>
+
 
                             <Form.Item label={<Space><TeamOutlined /> <Text strong>Team Members</Text></Space>}>
                                 <Input

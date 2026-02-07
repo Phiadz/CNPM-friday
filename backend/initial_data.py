@@ -7,6 +7,7 @@ Run with:
 """
 import asyncio
 import sys
+import os
 from datetime import datetime, date, timedelta
 from uuid import uuid4
 from pathlib import Path
@@ -17,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from faker import Faker
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy import text
 from passlib.context import CryptContext
 
 # Import your models
@@ -36,7 +38,7 @@ from app.db.base import Base
 # ==========================================
 
 # Update with your actual database URL
-DATABASE_URL = "postgresql+asyncpg://postgres:postgres@localhost:5432/collabsphere_db"
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/collabsphere_db")
 
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -58,13 +60,13 @@ async def clear_database(session: AsyncSession):
     print("⚠️  Clearing existing data...")
     
     # Delete in reverse order of dependencies
-    await session.execute("DELETE FROM class_enrollments")
-    await session.execute("DELETE FROM academic_classes")
-    await session.execute("DELETE FROM subjects")
-    await session.execute("DELETE FROM semesters")
-    await session.execute("DELETE FROM users")
-    await session.execute("DELETE FROM departments")
-    await session.execute("DELETE FROM roles")
+    await session.execute(text("DELETE FROM class_enrollments"))
+    await session.execute(text("DELETE FROM academic_classes"))
+    await session.execute(text("DELETE FROM subjects"))
+    await session.execute(text("DELETE FROM semesters"))
+    await session.execute(text("DELETE FROM users"))
+    await session.execute(text("DELETE FROM departments"))
+    await session.execute(text("DELETE FROM roles"))
     
     await session.commit()
     print("✅ Database cleared")

@@ -43,6 +43,8 @@ export const getMessages = async (channelId, { skip = 0, limit = 50 } = {}) => {
             limit
         }
     });
+    if (Array.isArray(response.data?.messages)) return response.data.messages;
+    if (Array.isArray(response.data?.items)) return response.data.items;
     return response.data;
 };
 

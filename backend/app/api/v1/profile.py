@@ -112,6 +112,19 @@ async def update_current_user_profile(
     
     # Commit changes
     await db.commit()
-    await db.refresh(user)
+    
+    # Re-fetch with relationships loaded using joinedload and populate_existing
+    from sqlalchemy.orm import joinedload
+    stmt = (
+        select(User)
+        .where(User.user_id == current_user.user_id)
+        .options(
+            joinedload(User.role),
+            joinedload(User.department)
+        )
+        .execution_options(populate_existing=True)
+    )
+    result = await db.execute(stmt)
+    user = result.scalar_one()
     
     return UserProfileResponse.model_validate(user)

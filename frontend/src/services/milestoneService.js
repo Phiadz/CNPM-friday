@@ -19,12 +19,12 @@ export const createMilestone = async (milestoneData) => {
 };
 
 /**
- * Lấy danh sách milestones của project
- * @param {number} projectId - ID của project
+ * Lấy danh sách milestones của lớp
+ * @param {number} classId - ID của class
  */
-export const getProjectMilestones = async (projectId) => {
+export const getClassMilestones = async (classId) => {
   const response = await api.get('/milestones/', {
-    params: { project_id: projectId }
+    params: { class_id: classId }
   });
   return response.data;
 };
@@ -61,10 +61,23 @@ export const deleteMilestone = async (milestoneId) => {
 
 /**
  * Tạo checkpoint mới
- * @param {object} checkpointData - { milestone_id, title, description?, order? }
+ * @param {number} milestoneId - ID của milestone
+ * @param {object} checkpointData - { milestone_id, team_id, title, status? }
  */
-export const createCheckpoint = async (checkpointData) => {
-  const response = await api.post('/milestones/checkpoints/', checkpointData);
+export const createCheckpoint = async (milestoneId, checkpointData) => {
+  const response = await api.post(`/milestones/${milestoneId}/checkpoints`, checkpointData);
+  return response.data;
+};
+
+/**
+ * Lấy danh sách checkpoints của milestone
+ * @param {number} milestoneId - ID của milestone
+ * @param {number} teamId - ID của team (optional)
+ */
+export const listCheckpoints = async (milestoneId, teamId) => {
+  const response = await api.get(`/milestones/${milestoneId}/checkpoints`, {
+    params: teamId ? { team_id: teamId } : undefined
+  });
   return response.data;
 };
 
@@ -97,7 +110,7 @@ export const calculateMilestoneProgress = (milestone) => {
   if (!milestone.checkpoints || milestone.checkpoints.length === 0) {
     return milestone.completed ? 100 : 0;
   }
-  
+
   const completed = milestone.checkpoints.filter(cp => cp.completed).length;
   return Math.round((completed / milestone.checkpoints.length) * 100);
 };
@@ -109,7 +122,7 @@ export const calculateMilestoneProgress = (milestone) => {
 export const isMilestoneOverdue = (milestone) => {
   if (!milestone.due_date) return false;
   if (milestone.completed) return false;
-  
+
   return new Date(milestone.due_date) < new Date();
 };
 
@@ -119,12 +132,12 @@ export const isMilestoneOverdue = (milestone) => {
  */
 export const formatDueDate = (dueDate) => {
   if (!dueDate) return 'Không có deadline';
-  
+
   const date = new Date(dueDate);
   const now = new Date();
   const diff = date - now;
   const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
-  
+
   if (days < 0) {
     return `Quá hạn ${Math.abs(days)} ngày`;
   } else if (days === 0) {
@@ -145,11 +158,12 @@ export const formatDueDate = (dueDate) => {
 
 export default {
   createMilestone,
-  getProjectMilestones,
+  getClassMilestones,
   getMilestone,
   updateMilestone,
   deleteMilestone,
   createCheckpoint,
+  listCheckpoints,
   updateCheckpoint,
   deleteCheckpoint,
   calculateMilestoneProgress,

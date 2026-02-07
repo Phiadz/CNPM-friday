@@ -18,7 +18,7 @@ from typing import Optional
 
 from app.db.session import get_db
 from app.api.deps import get_current_user
-from app.models.all_models import User, Sprint, Task
+from app.models.all_models import User, Sprint, Task, Team, TeamMember
 from app.schemas.task import TaskCreate, TaskUpdate
 
 router = APIRouter()
@@ -156,6 +156,70 @@ async def get_sprint_detail(
     }
 
 
+@router.get("/teams/{team_id}/sprints")
+async def get_team_sprints(
+    team_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get all sprints for a specific team
+    
+    Response:
+        {
+            "sprints": [
+                {
+                    "sprint_id": 1,
+                    "team_id": 1,
+                    "name": "Sprint 1",
+                    "start_date": "2026-01-28",
+                    "end_date": "2026-02-04",
+                    "created_at": "2026-01-28T10:00:00"
+                }
+            ],
+            "total": 1
+        }
+    """
+    
+    # Verify user is a member of the team
+    member_query = select(TeamMember).where(
+        and_(
+            TeamMember.team_id == team_id,
+            TeamMember.user_id == current_user.user_id
+        )
+    )
+    member_result = await db.execute(member_query)
+    member = member_result.scalar()
+    
+    if not member:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not a member of this team"
+        )
+    
+    # Get all sprints for the team
+    query = select(Sprint).where(Sprint.team_id == team_id).order_by(Sprint.created_at.desc())
+    result = await db.execute(query)
+    sprints = result.scalars().all()
+    
+    sprints_response = []
+    for sprint in sprints:
+        sprints_response.append({
+            "sprint_id": sprint.sprint_id,
+            "id": sprint.sprint_id,
+            "team_id": sprint.team_id,
+            "name": sprint.name,
+            "start_date": sprint.start_date,
+            "end_date": sprint.end_date,
+            "created_at": sprint.created_at
+        })
+    
+    return {
+        "sprints": sprints_response,
+        "total": len(sprints_response)
+    }
+
+
 # ============================================================================
 # TASKS ENDPOINTS
 # ============================================================================
@@ -195,13 +259,14 @@ async def create_task(
         title=task.title,
         sprint_id=task.sprint_id,
         description=task.description,
-        status="TODO",
+        status=task.status or "TODO",
         priority=task.priority or "MEDIUM",
         assigned_to=task.assigned_to,
         created_by=current_user.user_id,
         created_at=datetime.now(timezone.utc),
         blocked_reason=task.blocked_reason,
         depends_on=task.depends_on,
+        due_date=task.due_date,
     )
     
     db.add(new_task)
@@ -227,7 +292,8 @@ async def create_task(
         "created_by": current_user.full_name,
         "created_at": new_task.created_at,
         "blocked_reason": new_task.blocked_reason,
-        "depends_on": new_task.depends_on
+        "depends_on": new_task.depends_on,
+        "due_date": new_task.due_date
     }
 
 
@@ -262,7 +328,21 @@ async def get_tasks(
         }
     """
     
-    query = select(Task)
+    # Start with base query - use outerjoin to handle tasks without sprints/teams
+    from sqlalchemy.orm import outerjoin
+    query = select(Task).outerjoin(Sprint, Task.sprint_id == Sprint.sprint_id) \
+                        .outerjoin(Team, Sprint.team_id == Team.team_id) \
+                        .outerjoin(TeamMember, and_(
+                            Team.team_id == TeamMember.team_id,
+                            TeamMember.user_id == current_user.user_id
+                        )) \
+                        .where(
+                            # Include tasks that either:
+                            # 1. Have no sprint (orphaned tasks created by this user)
+                            # 2. Belong to a team where user is a member
+                            (Task.sprint_id == None) | 
+                            (TeamMember.user_id == current_user.user_id)
+                        )
     
     # Filter by sprint
     if sprint_id:
@@ -305,7 +385,8 @@ async def get_tasks(
             "priority": t.priority,
             "assigned_to": assigned_name,
             "created_by": creator.full_name if creator else "Unknown",
-            "created_at": t.created_at
+            "created_at": t.created_at,
+            "due_date": t.due_date
         })
     
     return {
@@ -373,7 +454,8 @@ async def get_task_detail(
         "created_at": task.created_at,
         "updated_at": task.updated_at,
         "blocked_reason": task.blocked_reason,
-        "depends_on": task.depends_on
+        "depends_on": task.depends_on,
+        "due_date": task.due_date
     }
 
 
@@ -446,6 +528,9 @@ async def update_task(
         
     if task_update.depends_on is not None:
         task.depends_on = task_update.depends_on
+        
+    if task_update.due_date is not None:
+        task.due_date = task_update.due_date
     
     # Update timestamp
     task.updated_at = datetime.now(timezone.utc)
@@ -472,7 +557,8 @@ async def update_task(
         "assigned_to": assigned_name,
         "updated_at": task.updated_at,
         "blocked_reason": task.blocked_reason,
-        "depends_on": task.depends_on
+        "depends_on": task.depends_on,
+        "due_date": task.due_date
     }
 
 
@@ -521,10 +607,10 @@ async def delete_task(
 # Valid status transitions map
 # Key = current status, Value = list of allowed next statuses
 STATUS_TRANSITIONS = {
-    "TODO": ["DOING"],
-    "DOING": ["REVIEW", "TODO"],
-    "REVIEW": ["DONE", "DOING"],
-    "DONE": ["REVIEW"], # Allow moving back to REVIEW if needed, or keep terminal
+    "TODO": ["DOING", "DONE"],
+    "DOING": ["TODO", "REVIEW", "DONE"],
+    "REVIEW": ["DONE", "DOING", "TODO"],
+    "DONE": ["REVIEW", "DOING", "TODO"], 
 }
 
 def validate_status_transition(current_status: str, new_status: str) -> bool:
@@ -574,6 +660,24 @@ async def get_sprint_tasks(
             detail="Sprint not found"
         )
     
+    # Verify user is a member of the team that owns this sprint
+    if sprint.team_id:
+        member_query = select(TeamMember).where(
+            and_(
+                TeamMember.team_id == sprint.team_id,
+                TeamMember.user_id == current_user.user_id
+            )
+        )
+        member_result = await db.execute(member_query)
+        member = member_result.scalar()
+        
+        if not member:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not a member of this team"
+            )
+    
+    
     # Build query
     query = select(Task).where(Task.sprint_id == sprint_id)
     
@@ -599,7 +703,8 @@ async def get_sprint_tasks(
             "status": t.status,
             "priority": t.priority,
             "assigned_to": assigned_name,
-            "created_at": t.created_at
+            "created_at": t.created_at,
+            "due_date": t.due_date
         })
     
     return {
@@ -688,7 +793,6 @@ async def change_task_status(
     }
 
 
-from app.models.all_models import TeamMember, Team
 from uuid import UUID as PyUUID
 
 @router.patch("/{task_id}/assign", status_code=200)

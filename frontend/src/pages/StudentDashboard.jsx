@@ -24,7 +24,8 @@ import {
 import dayjs from 'dayjs';
 import { useNavigate } from 'react-router-dom';
 import { useAuth, resolveRoleName } from '../components/AuthContext';
-import { projectService } from '../services/api';
+import { projectService, teamService } from '../services/api';
+import { tasksService } from '../services/tasksService';
 import './StudentDashboard.css';
 import MainLayout from '../components/MainLayout';
 
@@ -115,31 +116,112 @@ const StudentDashboard = () => {
 
     useEffect(() => {
         const fetchDashboardData = async () => {
-            // Simulate loading or fetch real data
-            const roleBasedProjects = [
-                { id: 1, title: 'Smart Inventory System', description: 'IoT-based tracking', progress: 75, status: 'active', type: 'IoT' },
-                { id: 2, title: 'E-Learning Platform', description: 'React & Node.js app', progress: 45, status: 'review', type: 'Web' },
-                { id: 3, title: 'AI Chatbot Assistant', description: 'NLP processing model', progress: 30, status: 'planning', type: 'AI' }
-            ];
+            if (!user || !token) return;
+            try {
+                // 1. Fetch Active Projects (Claimed Projects)
+                const projectsRes = await projectService.getAll({ claimed_by_me: true });
+                const projects = projectsRes.data || [];
 
-            const roleBasedTimeline = [
-                { id: 1, date: 'Today, 14:00', project: 'Smart Inventory', description: 'Team sync meeting', status: 'pending' },
-                { id: 2, date: 'Tomorrow, 10:00', project: 'E-Learning App', description: 'Frontend deployment', status: 'in-progress' },
-                { id: 3, date: 'Wed, 17 Nov', project: 'AI Chatbot', description: 'Dataset cleaning', status: 'completed' },
-                { id: 4, date: 'Fri, 19 Nov', project: 'Smart Inventory', description: 'Client demo', status: 'pending' },
-                { id: 5, date: 'Mon, 22 Nov', project: 'All Projects', description: 'Sprint Review', status: 'pending' }
-            ];
+                const mappedProjects = projects.map(p => ({
+                    id: p.project_id || p.id,
+                    title: p.project_name || p.topic_title || 'Untitled Project',
+                    description: p.topic_description || 'No description',
+                    progress: 0,
+                    status: p.status || 'active',
+                    type: 'Project',
+                    ...p
+                }));
+                setActiveProjects(mappedProjects);
 
-            const storedActive = hydrateActiveProjects(readActiveProjects());
-            setActiveProjects(storedActive.length ? storedActive : roleBasedProjects);
-            setTimelineData(roleBasedTimeline);
+                // 2. Fetch Project Timeline (Sprints with task statistics)
+                const teamsRes = await teamService.getAll();
+                const teams = (teamsRes.data.teams || []).filter(t => t.is_member);
+                const allTimeline = [];
 
-            console.log(`Loaded dashboard for role: ${userRole}`);
+                for (const team of teams) {
+                    const teamId = team.team_id || team.id;
+                    try {
+                        // Fetch sprints for this team
+                        const sprintsRes = await tasksService.getTeamSprints(teamId);
+                        const sprints = sprintsRes.data.sprints || [];
+
+                        // For each sprint, fetch tasks to calculate statistics
+                        for (const sprint of sprints) {
+                            const sprintId = sprint.sprint_id || sprint.id;
+                            let tasks = [];
+
+                            try {
+                                const tasksRes = await tasksService.getSprintTasks(sprintId);
+                                tasks = tasksRes.data.tasks || [];
+                            } catch (err) {
+                                console.error(`Failed to fetch tasks for sprint ${sprintId}`, err);
+                            }
+
+                            // Calculate task statistics
+                            const totalTasks = tasks.length;
+                            const completedTasks = tasks.filter(t => t.status === 'DONE').length;
+                            const inProgressTasks = tasks.filter(t => t.status === 'DOING').length;
+
+                            // Determine sprint status
+                            let status = 'pending';
+                            const now = dayjs();
+                            const startDate = sprint.start_date ? dayjs(sprint.start_date) : null;
+                            const endDate = sprint.end_date ? dayjs(sprint.end_date) : null;
+
+                            if (totalTasks > 0 && completedTasks === totalTasks) {
+                                status = 'completed';
+                            } else if (startDate && endDate) {
+                                if (now.isAfter(endDate)) {
+                                    status = 'completed';
+                                } else if (now.isAfter(startDate) && now.isBefore(endDate)) {
+                                    status = 'in-progress';
+                                }
+                            } else if (inProgressTasks > 0) {
+                                status = 'in-progress';
+                            }
+
+                            // Format date range
+                            let dateDisplay = 'No dates set';
+                            if (startDate && endDate) {
+                                dateDisplay = `${startDate.format('MMM DD')} - ${endDate.format('MMM DD, YYYY')}`;
+                            } else if (startDate) {
+                                dateDisplay = `Starts ${startDate.format('MMM DD, YYYY')}`;
+                            }
+
+                            // Create timeline event
+                            allTimeline.push({
+                                id: `sprint-${sprintId}`,
+                                date: dateDisplay,
+                                project: sprint.name || `Sprint ${sprintId}`,
+                                description: `${team.name} • ${totalTasks} task${totalTasks !== 1 ? 's' : ''}, ${completedTasks} completed`,
+                                status: status,
+                                rawDate: startDate ? startDate.toISOString() : null,
+                                teamName: team.name,
+                                sprintId: sprintId
+                            });
+                        }
+                    } catch (error) {
+                        console.error(`Failed to fetch sprints for team ${teamId}`, error);
+                    }
+                }
+
+                // Sort by date (upcoming first)
+                allTimeline.sort((a, b) => {
+                    if (!a.rawDate) return 1;
+                    if (!b.rawDate) return -1;
+                    return dayjs(a.rawDate).isAfter(dayjs(b.rawDate)) ? 1 : -1;
+                });
+
+                setTimelineData(allTimeline);
+
+                console.log(`Loaded dashboard for role: ${userRole}`);
+            } catch (error) {
+                console.error("Failed to fetch dashboard data", error);
+                message.error("Failed to load dashboard data");
+            }
         };
 
-        if (user && token) {
-            fetchDashboardData();
-        }
+        fetchDashboardData();
     }, [user, userRole, token]);
 
     useEffect(() => {
@@ -389,20 +471,11 @@ const StudentDashboard = () => {
                 }
                 extra={
                     <Space>
-                        <Button type="text" size="small" onClick={() => navigate('/resources')}>
+                        <Button type="text" size="small">
                             View All Files
                         </Button>
                         <Upload
-                            beforeUpload={(file) => {
-                                const fileData = {
-                                    name: file.name,
-                                    size: file.size,
-                                    type: file.type,
-                                    uid: file.uid
-                                };
-                                navigate('/resources', { state: { fileData } });
-                                return false;
-                            }}
+                            beforeUpload={handleFileUpload}
                             showUploadList={false}
                             accept=".pdf,.doc,.docx,.json,.csv,.fig,.xd,.png,.jpg,.jpeg"
                         >

@@ -1,4 +1,6 @@
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 from fastapi.middleware.cors import CORSMiddleware
 import logging
 
@@ -28,19 +30,34 @@ async def startup_event():
 
 # Configure CORS
 # Always fall back to permissive origins during local development if none are provided
-allowed_origins = settings.BACKEND_CORS_ORIGINS or ["*"]
-if allowed_origins:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=[str(origin) for origin in allowed_origins],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-        expose_headers=["X-Total-Count"],
-    )
+# Configure CORS
+# Always fall back to permissive origins during local development if none are provided
+allowed_origins = settings.BACKEND_CORS_ORIGINS or []
+# Explicitly add local development origins to ensure they are allowed
+allowed_origins.extend(["http://localhost:3000", "http://localhost:5173"])
+# Remove duplicates
+allowed_origins = list(set(allowed_origins))
+
+# Fallback to "*" if empty (though we just added some)
+if not allowed_origins:
+    allowed_origins = ["*"]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[str(origin) for origin in allowed_origins],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["X-Total-Count"],
+)
 
 # Mount API routes with /api/v1 prefix
 app.include_router(api_router, prefix=settings.API_V1_STR)
+
+# Serve uploaded files
+uploads_root = Path(settings.ROOT_DIR) / "uploads"
+uploads_root.mkdir(parents=True, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=uploads_root), name="uploads")
 
 # Mount Socket.IO at /socket.io path - Phase 3 BE1
 app.mount("/socket.io", socket_app)

@@ -19,6 +19,12 @@
     gap: 16px;
 }
 
+.evaluation-page__list-item--active {
+    background: #f0f5ff;
+    border-radius: 8px;
+    padding: 8px 12px;
+}
+
 @media (max-width: 1024px) {
     .evaluation-page__grid {
         grid-template-columns: 1fr;

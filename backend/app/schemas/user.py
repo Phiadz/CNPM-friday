@@ -17,6 +17,7 @@ class UserBase(BaseModel):
     email: EmailStr
     full_name: Optional[str] = None
     is_active: Optional[bool] = True
+    dept_id: Optional[int] = None
 
 # Dữ liệu cần để tạo User (Client gửi lên)
 class UserCreate(UserBase):

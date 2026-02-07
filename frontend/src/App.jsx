@@ -17,7 +17,6 @@ import MentoringPage from './pages/MentoringPage';
 import EvaluationPage from './pages/EvaluationPage';
 import SubmissionsPage from './pages/SubmissionsPage';
 import PeerReviewsPage from './pages/PeerReviewsPage';
-import ResourcesPage from './pages/ResourcesPage';
 import { useAuth, getDefaultDashboardPath, resolveRoleName } from './components/AuthContext';
 import { initSocket, disconnectSocket } from './services/socketService';
 
@@ -108,7 +107,6 @@ const App = () => {
       <Route path="/chat" element={<ProtectedRoute><TeamChat /></ProtectedRoute>} />
       <Route path="/submission" element={<ProtectedRoute><SubmissionsPage /></ProtectedRoute>} />
       <Route path="/peer-review" element={<ProtectedRoute><PeerReviewsPage /></ProtectedRoute>} />
-      <Route path="/resources" element={<ProtectedRoute><ResourcesPage /></ProtectedRoute>} />
       <Route path="/admin" element={<ProtectedRoute allowedRoles={adminRoleGate}><AdminDashboard /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

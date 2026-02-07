@@ -63,11 +63,10 @@ async def create_topic(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only lecturers can create topics"
         )
-
-    if current_user.dept_id is None:
+    if not current_user.can_create_topics:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Lecturer must belong to a department before creating topics"
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not allowed to create topics"
         )
     
     # Create new topic

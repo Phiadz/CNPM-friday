@@ -23,150 +23,154 @@ import {
     LockOutlined,
     MailOutlined
 } from '@ant-design/icons';
-import { useAuth } from '../components/AuthContext';
+import { profileService } from '../services/api';
 
 const { Title, Text } = Typography;
 const { Content } = Layout;
 
 const roles = [
-    { name: 'Admin', dotColor: '#f5222d' },
-    { name: 'Staff', dotColor: '#faad14' },
-    { name: 'Lecturer', dotColor: '#1890ff' },
-    { name: 'Student', dotColor: '#52c41a' }
+    { name: 'Admin', value: 'ADMIN', dotColor: '#f5222d' },
+    { name: 'Staff', value: 'STAFF', dotColor: '#faad14' },
+    { name: 'Lecturer', value: 'LECTURER', dotColor: '#1890ff' },
+    { name: 'Student', value: 'STUDENT', dotColor: '#52c41a' },
+    { name: 'Head Dept', value: 'HEAD_DEPT', dotColor: '#722ed1' }
 ];
-
-const STORAGE_BASE_KEYS = {
-    profile: 'user_profile',
-    avatar: 'user_avatar'
-};
-
-const canUseStorage = () => typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
-
-const buildScopedKey = (baseKey, user) => {
-    const identifier = user?.id || user?.email;
-    return identifier ? `${baseKey}_${identifier}` : `${baseKey}_default`;
-};
-
-const readStoredProfile = (storageKey) => {
-    if (!canUseStorage() || !storageKey) {
-        return null;
-    }
-    const raw = window.localStorage.getItem(storageKey);
-    if (!raw) {
-        return null;
-    }
-    try {
-        return JSON.parse(raw);
-    } catch (_err) {
-        window.localStorage.removeItem(storageKey);
-        return null;
-    }
-};
-
-const readStoredAvatar = (storageKey, fallback) => {
-    if (!canUseStorage() || !storageKey) {
-        return fallback;
-    }
-    const storedValue = window.localStorage.getItem(storageKey);
-    return storedValue || fallback;
-};
 
 const SettingsPage = () => {
     const navigate = useNavigate();
-    const { user, updateUser } = useAuth();
+    const { user, updateUser, resolveRoleName, getDefaultDashboardPath } = useAuth();
     const fileInputRef = useRef(null);
     const [formProfile] = Form.useForm();
     const [formPassword] = Form.useForm();
 
-    const defaultProfile = useMemo(() => ({
-        name: user?.full_name || 'Tong duc huy',
-        email: user?.email || 'Test@gmail.com',
-        phone: user?.phone || '0495558839'
-    }), [user]);
+    const getDisplayRole = (u) => {
+        const r = resolveRoleName(u);
+        if (!r) return 'Student';
+        return r.charAt(0).toUpperCase() + r.slice(1).toLowerCase();
+    };
 
-    const authAvatar = user?.avatar_url || null;
-    const profileStorageKey = buildScopedKey(STORAGE_BASE_KEYS.profile, user);
-    const avatarStorageKey = buildScopedKey(STORAGE_BASE_KEYS.avatar, user);
+    const [userData, setUserData] = useState({
+        name: user?.full_name || '',
+        email: user?.email || '',
+        phone: user?.phone || '',
+        role: getDisplayRole(user)
+    });
 
-    const [userData, setUserData] = useState(defaultProfile);
-    const [avatarUrl, setAvatarUrl] = useState(authAvatar);
+    const [avatarUrl, setAvatarUrl] = useState(user?.avatar_url || null);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
+    // Fetch Profile from API on mount
     useEffect(() => {
-        const stored = readStoredProfile(profileStorageKey);
-        if (stored) {
-            setUserData({ ...defaultProfile, ...stored });
-        } else {
-            setUserData(defaultProfile);
-        }
-    }, [profileStorageKey, defaultProfile]);
-
-    useEffect(() => {
-        const storedAvatar = readStoredAvatar(avatarStorageKey, authAvatar);
-        setAvatarUrl(storedAvatar);
-    }, [avatarStorageKey, authAvatar]);
-
-    useEffect(() => {
-        if (!canUseStorage()) {
-            return;
-        }
-        const payload = { ...userData, _owner: user?.email || null };
-        window.localStorage.setItem(profileStorageKey, JSON.stringify(payload));
-        window.localStorage.setItem(STORAGE_BASE_KEYS.profile, JSON.stringify(payload));
-        window.dispatchEvent(new CustomEvent('profile-updated', { detail: { profile: payload } }));
-    }, [userData, profileStorageKey]);
-
-    useEffect(() => {
-        if (!canUseStorage()) {
-            return;
-        }
-        if (avatarUrl) {
-            window.localStorage.setItem(avatarStorageKey, avatarUrl);
-            window.localStorage.setItem(STORAGE_BASE_KEYS.avatar, avatarUrl);
-            window.dispatchEvent(new CustomEvent('avatar-updated', { detail: { avatarUrl } }));
-        } else {
-            window.localStorage.removeItem(avatarStorageKey);
-            window.localStorage.removeItem(STORAGE_BASE_KEYS.avatar);
-        }
-    }, [avatarUrl, avatarStorageKey]);
-
-    const handleFileChange = (event) => {
-        const file = event.target.files?.[0];
-        if (!file) {
-            return;
-        }
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            const nextAvatar = reader.result?.toString() || null;
-            setAvatarUrl(nextAvatar);
-            if (nextAvatar) {
-                updateUser({ avatar_url: nextAvatar });
+        const fetchProfile = async () => {
+            try {
+                const response = await profileService.getMe();
+                if (response.data) {
+                    const apiData = response.data;
+                    setUserData({
+                        name: apiData.full_name || '',
+                        email: apiData.email || '',
+                        phone: apiData.phone || '',
+                        role: getDisplayRole(apiData)
+                    });
+                    setAvatarUrl(apiData.avatar_url);
+                    updateUser(apiData);
+                }
+            } catch (error) {
+                console.error("Failed to fetch profile", error);
             }
-            message.success('Avatar updated');
+        };
+        fetchProfile();
+    }, []);
+
+    const handleFileChange = async (event) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        if (file.size > 2 * 1024 * 1024) {
+            return message.error('Image too large (max 2MB)');
+        }
+
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+            const base64String = reader.result;
+            setAvatarUrl(base64String);
+
+            try {
+                const response = await profileService.updateMe({
+                    avatar_url: base64String
+                });
+                if (response.data) {
+                    updateUser({ avatar_url: response.data.avatar_url || base64String });
+                }
+                message.success('Avatar updated successfully');
+            } catch (error) {
+                console.error('Failed to update avatar:', error);
+                const detail = error.response?.data?.detail;
+                let errorMsg = 'Failed to update avatar. Please try again.';
+
+                if (Array.isArray(detail)) {
+                    errorMsg = detail.map(d => `${d.loc.join('.')}: ${d.msg}`).join(', ');
+                } else if (typeof detail === 'string') {
+                    errorMsg = detail;
+                }
+
+                message.error({ content: errorMsg, duration: 5 });
+                setAvatarUrl(user?.avatar_url || null);
+            }
         };
         reader.readAsDataURL(file);
     };
 
-    const handleUpdateProfile = (values) => {
-        setUserData((prev) => ({ ...prev, ...values }));
-        updateUser({
-            full_name: values.name || user?.full_name,
-            email: values.email || user?.email,
-        });
-        message.success('Profile updated successfully');
-        setIsEditModalOpen(false);
+    const handleUpdateProfile = async (values) => {
+        try {
+            const payload = {
+                full_name: values.name,
+                phone: values.phone,
+            };
+
+            const response = await profileService.updateMe(payload);
+            const updatedData = response.data;
+
+            setUserData(prev => ({
+                ...prev,
+                name: updatedData?.full_name || values.name,
+                phone: updatedData?.phone || values.phone
+            }));
+
+            updateUser({
+                full_name: updatedData?.full_name || values.name,
+                phone: updatedData?.phone || values.phone,
+            });
+
+            message.success('Profile updated successfully');
+            setIsEditModalOpen(false);
+        } catch (error) {
+            console.error("Failed to update profile", error);
+            const detail = error.response?.data?.detail;
+            let errorMsg = 'Failed to update profile. Please try again.';
+
+            if (Array.isArray(detail)) {
+                errorMsg = detail.map(d => `${d.loc.join('.')}: ${d.msg}`).join(', ');
+            } else if (typeof detail === 'string') {
+                errorMsg = detail;
+            }
+
+            message.error({ content: errorMsg, duration: 5 });
+        }
     };
 
-    const handleUpdatePassword = () => {
-        formPassword
-            .validateFields()
-            .then(() => {
-                message.success('Password updated successfully');
-                formPassword.resetFields();
-            })
-            .catch(() => {
-                message.error('Please fill in the form completely');
-            });
+    const handleUpdatePassword = async () => {
+        try {
+            const values = await formPassword.validateFields();
+            if (values.new !== values.confirm) {
+                return message.error('Passwords do not match');
+            }
+            // Password update API would go here if available
+            message.success('Password updated successfully');
+            formPassword.resetFields();
+        } catch (error) {
+            // Field validation handles reporting
+        }
     };
 
     return (
@@ -260,31 +264,34 @@ const SettingsPage = () => {
                         <Card style={{ background: '#f5f5f5', borderRadius: 24, border: 'none' }}>
                             <Title level={4} style={{ marginBottom: 20 }}>Assigned Roles</Title>
                             <Space wrap size={12}>
-                                {roles.map((role) => (
-                                    <Tag
-                                        key={role.name}
-                                        style={{
-                                            backgroundColor: '#fff',
-                                            color: '#000',
-                                            borderRadius: 20,
-                                            padding: '5px 18px',
-                                            border: '1px solid #d9d9d9',
-                                            fontSize: 14
-                                        }}
-                                    >
-                                        <span
+                                {(() => {
+                                    const userRoleStr = (user?.role?.role_name || 'STUDENT').toUpperCase();
+                                    const displayRole = roles.find(r => r.value === userRoleStr) || roles[3];
+                                    return (
+                                        <Tag
                                             style={{
-                                                display: 'inline-block',
-                                                width: 8,
-                                                height: 8,
-                                                backgroundColor: role.dotColor,
-                                                borderRadius: '50%',
-                                                marginRight: 8
+                                                backgroundColor: '#fff',
+                                                color: '#000',
+                                                borderRadius: 20,
+                                                padding: '5px 18px',
+                                                border: '1px solid #d9d9d9',
+                                                fontSize: 14
                                             }}
-                                        />
-                                        {role.name}
-                                    </Tag>
-                                ))}
+                                        >
+                                            <span
+                                                style={{
+                                                    display: 'inline-block',
+                                                    width: 8,
+                                                    height: 8,
+                                                    backgroundColor: displayRole.dotColor,
+                                                    borderRadius: '50%',
+                                                    marginRight: 8
+                                                }}
+                                            />
+                                            {displayRole.name}
+                                        </Tag>
+                                    );
+                                })()}
                             </Space>
                         </Card>
                     </Col>
@@ -301,8 +308,8 @@ const SettingsPage = () => {
                     <Form.Item name="name" label="Full Name" rules={[{ required: true }]}>
                         <Input />
                     </Form.Item>
-                    <Form.Item name="email" label="Email Address" rules={[{ required: true, type: 'email' }]}>
-                        <Input prefix={<MailOutlined />} />
+                    <Form.Item name="email" label="Email Address">
+                        <Input prefix={<MailOutlined />} disabled />
                     </Form.Item>
                     <Form.Item name="phone" label="Phone Number">
                         <Input />

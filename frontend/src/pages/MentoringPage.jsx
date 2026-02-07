@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useAuth } from '../components/AuthContext';
+import { resolveRoleName, useAuth } from '../components/AuthContext';
 import { teamService } from '../services/api';
 import MentoringDashboard from '../components/MentoringDashboard';
 import LecturerLayout from '../components/LecturerLayout';
@@ -14,7 +14,12 @@ const MentoringPage = () => {
             if (!user) return;
             try {
                 const res = await teamService.getAll();
-                setTeams(res.data?.teams || res.data || []);
+                const list = res.data?.teams || res.data || [];
+                const roleName = resolveRoleName(user);
+                const filtered = roleName === 'STUDENT'
+                    ? list.filter((t) => t.is_member)
+                    : list;
+                setTeams(filtered);
             } catch (_err) {
                 setTeams([]);
             }

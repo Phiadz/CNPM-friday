@@ -263,6 +263,10 @@ export const AuthProvider = ({ children }) => {
     }, [location.pathname, clearError]);
 
     const logout = useCallback(() => {
+        // Clear ALL localStorage to prevent data leakage between users
+        if (canUseStorage()) {
+            window.localStorage.clear();
+        }
         persistSession(null, null);
         setToken(null);
         setUser(null);

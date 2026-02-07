@@ -33,6 +33,15 @@ services:
     networks:
       - collabsphere_network
 
+  peerjs:
+    image: peerjs/peerjs-server:1.0.0
+    container_name: collabsphere_peerjs
+    command: [ "peerjs", "--port", "9000", "--path", "/peerjs", "--key", "peerjs", "--allow_discovery" ]
+    ports:
+      - "9000:9000"
+    networks:
+      - collabsphere_network
+
   backend:
     build:
       context: ./backend
@@ -41,7 +50,7 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      DATABASE_URL: postgresql+asyncpg://collabsphere:collabsphere_password@db:5432/collabsphere_db
+      # DATABASE_URL: postgresql+asyncpg://collabsphere:collabsphere_password@db:5432/collabsphere_db
       # Override only specific variables needed for Docker
       REDIS_URL: redis://redis:6379/0
       # All other variables (DATABASE_URL, SECRET_KEY, etc.) come from .env file
@@ -56,7 +65,7 @@ services:
         condition: service_healthy
     networks:
       - collabsphere_network
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    # command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
   frontend:
     build:
@@ -65,6 +74,9 @@ services:
     container_name: collabsphere_frontend
     environment:
       VITE_API_URL: http://localhost:8000/api/v1
+      VITE_PEER_HOST: localhost
+      VITE_PEER_PORT: 9000
+      VITE_PEER_SECURE: "false"
     ports:
       - "3000:3000"
     volumes:
@@ -72,6 +84,7 @@ services:
       - /app/node_modules
     depends_on:
       - backend
+      - peerjs
     networks:
       - collabsphere_network
     command: npm run dev -- --host 0.0.0.0 --port 3000

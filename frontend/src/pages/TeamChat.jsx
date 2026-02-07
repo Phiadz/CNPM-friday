@@ -65,14 +65,14 @@ const TeamChat = () => {
         const fetchTeams = async () => {
             try {
                 const res = await teamService.getAll();
-                const list = Array.isArray(res?.data?.teams)
+                const list = (Array.isArray(res?.data?.teams)
                     ? res.data.teams
                     : Array.isArray(res?.data)
                         ? res.data
-                        : [];
+                        : []).filter(t => t.is_member);
                 setTeams(list);
                 if (list.length) {
-                    setSelectedTeamId(list[0].id);
+                    setSelectedTeamId(list[0].team_id || list[0].id);
                 }
             } catch (error) {
                 console.error('Failed to fetch teams', error);

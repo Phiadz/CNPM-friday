@@ -41,3 +41,25 @@ QA_*.md
 # Misc
 *.bak
 *.tmp
+
+# Documentation folders (not needed for running)
+Giao_Viec/
+Giao_Viec_2/
+Giai-doan 3-4/
+ARCHITECTURE.md
+stash_files.txt
+Json swagger.txt
+api_endpoints.json
+seed_data.py
+
+# Mac files
+__MACOSX/
+
+# Backend docs
+backend/HOW_TO_USE.md
+backend/RBAC_NOTES.md
+
+# Keep only essential README
+!README.md
+!backend/README.md
+!frontend/README.md

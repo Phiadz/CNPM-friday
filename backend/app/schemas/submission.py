@@ -22,7 +22,7 @@ class SubmissionBase(BaseModel):
 
 class SubmissionCreate(BaseModel):
     """Schema for creating a submission."""
-    checkpoint_id: int = Field(..., gt=0, description="Checkpoint ID")
+    checkpoint_id: Optional[int] = Field(None, gt=0, description="Checkpoint ID")
     team_id: int = Field(..., gt=0, description="Team ID")
     content: str = Field(..., min_length=1, description="Submission content/description")
     file_url: Optional[str] = Field(None, description="Link to uploaded file")
@@ -38,7 +38,6 @@ class SubmissionCreate(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "checkpoint_id": 1,
                 "team_id": 5,
                 "content": "Project proposal document with detailed requirements analysis",
                 "file_url": "https://storage.example.com/submissions/proposal_v1.pdf"
@@ -123,10 +122,6 @@ class EvaluationResponse(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
-
-
-# Rebuild model to resolve forward reference
-SubmissionWithEvaluation.model_rebuild()
 
 
 class SubmissionListResponse(BaseModel):

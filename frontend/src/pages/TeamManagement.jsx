@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Layout, Typography, Button, Table, Modal, Form, Input, message, Row, Col, Card } from 'antd';
+import { Layout, Typography, Button, Table, Modal, Form, Input, message, Row, Col, Card, Select } from 'antd';
 import { PlusOutlined, TeamOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { studentTeamsService } from '../services/studentTeamsService';
@@ -7,6 +7,7 @@ import MainLayout from '../components/MainLayout';
 
 const { Title, Text } = Typography;
 const { Content } = Layout;
+const { Option } = Select;
 
 const TeamManagement = () => {
     const navigate = useNavigate();
@@ -16,6 +17,10 @@ const TeamManagement = () => {
     const [joinForm] = Form.useForm();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [form] = Form.useForm();
+    const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
+    const [selectedTeam, setSelectedTeam] = useState(null);
+    const [claimedProjects, setClaimedProjects] = useState([]);
+    const [projectForm] = Form.useForm();
 
     const fetchTeams = async () => {
         setLoading(true);
@@ -35,8 +40,19 @@ const TeamManagement = () => {
         }
     };
 
+    const fetchClaimedProjects = async () => {
+        try {
+            const res = await fetch('/api/v1/projects?claimed_by_me=true');
+            const data = await res.json();
+            setClaimedProjects(data.projects || []);
+        } catch (error) {
+            console.error('Failed to fetch claimed projects:', error);
+        }
+    };
+
     useEffect(() => {
         fetchTeams();
+        fetchClaimedProjects();
     }, []);
 
     const handleCreateTeam = async (values) => {
@@ -62,7 +78,23 @@ const TeamManagement = () => {
         {
             title: 'Roles',
             key: 'roles',
-            render: () => <span style={{ background: '#fff', padding: '4px 12px', borderRadius: 4, border: '1px solid #d9d9d9', fontSize: 12 }}>Member</span>
+            render: (_, record) => {
+                const role = record.my_role || 'Member';
+                const isLeader = String(role).toUpperCase() === 'LEADER';
+                return (
+                    <span style={{
+                        background: isLeader ? '#fffbe6' : '#fff',
+                        color: isLeader ? '#faad14' : 'rgba(0, 0, 0, 0.88)',
+                        borderColor: isLeader ? '#ffe58f' : '#d9d9d9',
+                        padding: '4px 12px',
+                        borderRadius: 4,
+                        border: '1px solid',
+                        fontSize: 12
+                    }}>
+                        {isLeader ? 'Leader' : 'Member'}
+                    </span>
+                );
+            }
         },
         {
             title: 'Project ID',
@@ -84,14 +116,16 @@ const TeamManagement = () => {
             title: 'Action',
             key: 'action',
             render: (_, record) => (
-                <Button
-                    size="small"
-                    shape="round"
-                    onClick={() => navigate(`/teams/${record.team_id || record.id}`)}
-                    style={{ border: '1px solid #d9d9d9' }}
-                >
-                    View
-                </Button>
+                <div style={{ display: 'flex', gap: 8 }}>
+                    <Button
+                        size="small"
+                        shape="round"
+                        onClick={() => navigate(`/teams/${record.team_id || record.id}`)}
+                        style={{ border: '1px solid #d9d9d9' }}
+                    >
+                        View
+                    </Button>
+                </div>
             )
         }
     ];
@@ -106,6 +140,32 @@ const TeamManagement = () => {
         } catch (error) {
             console.error("Failed to join team", error);
             message.error(error.response?.data?.detail || 'Failed to join team');
+        }
+    };
+
+    const handleSelectProject = async (values) => {
+        try {
+            const response = await fetch(`/api/v1/teams/${selectedTeam.team_id}/select-project`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                },
+                body: JSON.stringify({ project_id: values.project_id })
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.detail || 'Failed to select project');
+            }
+
+            message.success('Project selected successfully');
+            setIsProjectModalOpen(false);
+            projectForm.resetFields();
+            fetchTeams();
+        } catch (error) {
+            console.error("Failed to select project", error);
+            message.error(error.message || 'Failed to select project');
         }
     };
 
@@ -146,7 +206,7 @@ const TeamManagement = () => {
 
                 <Table
                     loading={loading}
-                    dataSource={teams}
+                    dataSource={teams.filter(t => t.is_member)}
                     columns={columns}
                     rowKey={(record) => record.team_id || record.id || Math.random()}
                     pagination={false}
@@ -183,6 +243,29 @@ const TeamManagement = () => {
                         rules={[{ required: true, message: 'Please enter a join code' }]}
                     >
                         <Input placeholder="Enter 8-character code" />
+                    </Form.Item>
+                </Form>
+            </Modal>
+
+            <Modal
+                title="Select Project for Team"
+                open={isProjectModalOpen}
+                onCancel={() => setIsProjectModalOpen(false)}
+                onOk={() => projectForm.submit()}
+            >
+                <Form form={projectForm} layout="vertical" onFinish={handleSelectProject}>
+                    <Form.Item
+                        name="project_id"
+                        label="Project"
+                        rules={[{ required: true, message: 'Please select a project' }]}
+                    >
+                        <Select placeholder="Chọn dự án">
+                            {claimedProjects.map((project) => (
+                                <Option key={project.project_id} value={project.project_id}>
+                                    {project.title}
+                                </Option>
+                            ))}
+                        </Select>
                     </Form.Item>
                 </Form>
             </Modal>

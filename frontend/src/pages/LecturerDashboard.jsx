@@ -7,7 +7,7 @@ import {
 } from 'antd';
 import {
     SettingOutlined, BellOutlined, SearchOutlined, PlusOutlined,
-    DashboardOutlined, DesktopOutlined, BookOutlined, CheckSquareOutlined,
+    DashboardOutlined, BookOutlined, CheckSquareOutlined,
     LogoutOutlined, UserOutlined, FilePdfOutlined,
     FileImageOutlined, FileOutlined, ClockCircleOutlined, UploadOutlined,
     MoreOutlined, CheckCircleOutlined, SyncOutlined, PlayCircleOutlined,
@@ -17,6 +17,7 @@ import {
 import dayjs from 'dayjs';
 import { useAuth, resolveRoleName } from '../components/AuthContext';
 import { lecturerTopicsService } from '../services/lecturerTopicsService';
+import submissionService from '../services/submissionService';
 import './StudentDashboard.css';
 import './LecturerDashboard.css';
 
@@ -287,6 +288,12 @@ const LecturerDashboard = () => {
     const [topics, setTopics] = useState([]);
     const [topicsLoading, setTopicsLoading] = useState(false);
     const [topicsError, setTopicsError] = useState('');
+    const [submissions, setSubmissions] = useState([]);
+    const [submissionsLoading, setSubmissionsLoading] = useState(false);
+    const [submissionsError, setSubmissionsError] = useState('');
+    const [isSubmissionModalOpen, setSubmissionModalOpen] = useState(false);
+    const [selectedSubmission, setSelectedSubmission] = useState(null);
+    const [submissionDetailLoading, setSubmissionDetailLoading] = useState(false);
 
     const navButtonStyles = (key, { active, danger } = {}) => ({
         textAlign: collapsed ? 'center' : 'left',
@@ -474,6 +481,47 @@ const LecturerDashboard = () => {
         handleLoadTopics();
     }, [handleLoadTopics]);
 
+    const handleLoadSubmissions = useCallback(async () => {
+        setSubmissionsLoading(true);
+        setSubmissionsError('');
+        try {
+            const response = await submissionService.getSubmissions({ limit: 20 });
+            const payload = Array.isArray(response) ? response : response?.data;
+            setSubmissions(Array.isArray(payload) ? payload : []);
+        } catch (error) {
+            if (error?.response?.status === 401) {
+                message.error('Session expired. Please sign in again.');
+                logout();
+                navigate('/login', { replace: true });
+                return;
+            }
+            const errorMessage = extractErrorMessage(error, 'Failed to load submissions');
+            setSubmissionsError(errorMessage);
+        } finally {
+            setSubmissionsLoading(false);
+        }
+    }, [logout, navigate]);
+
+    useEffect(() => {
+        handleLoadSubmissions();
+    }, [handleLoadSubmissions]);
+
+    const handleOpenSubmission = useCallback(async (submissionId) => {
+        if (!submissionId) return;
+        setSubmissionDetailLoading(true);
+        setSubmissionModalOpen(true);
+        try {
+            const detail = await submissionService.getSubmission(submissionId);
+            setSelectedSubmission(detail);
+        } catch (error) {
+            const errorMessage = extractErrorMessage(error, 'Failed to load submission');
+            message.error(errorMessage);
+            setSelectedSubmission(null);
+        } finally {
+            setSubmissionDetailLoading(false);
+        }
+    }, []);
+
     const [timelineData, setTimelineData] = useState(roleBasedTimeline);
 
     useEffect(() => {
@@ -604,9 +652,9 @@ const LecturerDashboard = () => {
         }).length;
         const approved = topics.filter((topic) => normalizeTopicStatus(topic?.status) === 'APPROVED').length;
         return [
-            { title: 'Total topics', subtitle: String(total), accent: '#EFEFEF' },
-            { title: 'Pending topics', subtitle: String(pending), accent: '#EFEFEF' },
-            { title: 'Approved topics', subtitle: String(approved), accent: '#EFEFEF' },
+            { title: 'Total topics', subtitle: String(total), accent: '#EFEFEF', icon: <BookOutlined /> },
+            { title: 'Pending topics', subtitle: String(pending), accent: '#EFEFEF', icon: <ClockCircleOutlined /> },
+            { title: 'Approved topics', subtitle: String(approved), accent: '#EFEFEF', icon: <CheckCircleOutlined /> },
         ];
     }, [topics]);
 
@@ -799,14 +847,6 @@ const LecturerDashboard = () => {
                                 <Button
                                     type="text"
                                     block
-                                    icon={<DesktopOutlined />}
-                                    {...navButtonInteractions('class')}
-                                >
-                                    {!collapsed && "Class Monitoring"}
-                                </Button>
-                                <Button
-                                    type="text"
-                                    block
                                     icon={<CloudUploadOutlined />}
                                     onClick={() => navigate('/mentoring')}
                                     {...navButtonInteractions('mentoring')}
@@ -861,7 +901,14 @@ const LecturerDashboard = () => {
                     background: '#f5f5f5',
                     minHeight: 'auto'
                 }}>
-                    <Card className="hero-card hero-placeholder dashboard-card" variant="borderless" />
+                    <Card className="hero-card hero-placeholder dashboard-card" variant="borderless">
+                        <div className="hero-content">
+                            <div>
+                                <Title level={3} className="hero-title">Welcome back, {greetingName}</Title>
+                                <Text className="hero-subtitle">Here is a quick overview of your grading queue.</Text>
+                            </div>
+                        </div>
+                    </Card>
 
                     {topicsError && (
                         <Alert
@@ -887,7 +934,9 @@ const LecturerDashboard = () => {
                                             <Text className="stat-title">{stat.title}</Text>
                                             <Text className="stat-subtitle">{stat.subtitle}</Text>
                                         </div>
-                                        <div className="stat-icon" style={{ background: stat.accent }} />
+                                        <div className="stat-icon" style={{ background: stat.accent }}>
+                                            {stat.icon}
+                                        </div>
                                     </div>
                                 </Card>
                             </Col>
@@ -932,6 +981,51 @@ const LecturerDashboard = () => {
                                 </div>
                             </Card>
                         ))}
+                    </div>
+
+                    <div style={{ marginTop: 24 }}>
+                        <Title level={5} style={{ marginBottom: 12 }}>Recent submissions</Title>
+                        <Card className="dashboard-card" variant="borderless">
+                            {submissionsError && (
+                                <Alert
+                                    type="error"
+                                    showIcon
+                                    message="Unable to load submissions"
+                                    description={submissionsError}
+                                    action={(
+                                        <Button size="small" onClick={handleLoadSubmissions}>
+                                            Retry
+                                        </Button>
+                                    )}
+                                    style={{ marginBottom: 16 }}
+                                />
+                            )}
+                            <List
+                                loading={submissionsLoading}
+                                dataSource={submissions}
+                                locale={{ emptyText: 'No submissions yet' }}
+                                renderItem={(item) => {
+                                    const submittedAt = item?.submitted_at
+                                        ? dayjs(item.submitted_at).format('DD/MM/YYYY HH:mm')
+                                        : 'Unknown time';
+                                    return (
+                                        <List.Item
+                                            onClick={() => handleOpenSubmission(item.submission_id)}
+                                            style={{ cursor: item.submission_id ? 'pointer' : 'default' }}
+                                        >
+                                            <List.Item.Meta
+                                                title={`Submission #${item.submission_id || '-'} • Checkpoint ${item.checkpoint_id || '-'}`}
+                                                description={`Submitted at ${submittedAt}`}
+                                            />
+                                            <Space>
+                                                {item.is_late && <Tag color="orange">Late</Tag>}
+                                                {item.has_evaluation && <Tag color="green">Graded</Tag>}
+                                            </Space>
+                                        </List.Item>
+                                    );
+                                }}
+                            />
+                        </Card>
                     </div>
 
                 </Content>
@@ -1039,6 +1133,63 @@ const LecturerDashboard = () => {
                     </div>
                 </Sider>
             </Layout>
+
+            <Modal
+                title="Submission details"
+                open={isSubmissionModalOpen}
+                onCancel={() => {
+                    setSubmissionModalOpen(false);
+                    setSelectedSubmission(null);
+                }}
+                footer={null}
+                destroyOnHidden
+                styles={{ body: { paddingTop: 0 } }}
+            >
+                {submissionDetailLoading ? (
+                    <Text>Loading...</Text>
+                ) : selectedSubmission ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        <div>
+                            <Text strong>Submission ID</Text>
+                            <div>{selectedSubmission.submission_id}</div>
+                        </div>
+                        <div>
+                            <Text strong>Checkpoint</Text>
+                            <div>{selectedSubmission.checkpoint_id}</div>
+                        </div>
+                        <div>
+                            <Text strong>Submitted at</Text>
+                            <div>
+                                {selectedSubmission.submitted_at
+                                    ? dayjs(selectedSubmission.submitted_at).format('DD/MM/YYYY HH:mm')
+                                    : 'Unknown'}
+                            </div>
+                        </div>
+                        <div>
+                            <Text strong>Content</Text>
+                            <div>{selectedSubmission.content || '-'}</div>
+                        </div>
+                        <div>
+                            <Text strong>File URL</Text>
+                            <div>
+                                {selectedSubmission.file_url ? (
+                                    <a
+                                        href={selectedSubmission.file_url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                    >
+                                        Open file
+                                    </a>
+                                ) : '-'}
+                            </div>
+                        </div>
+                        {selectedSubmission.is_late && <Tag color="orange">Late</Tag>}
+                        {selectedSubmission.evaluation && <Tag color="green">Graded</Tag>}
+                    </div>
+                ) : (
+                    <Text>No submission selected.</Text>
+                )}
+            </Modal>
 
             <Modal
                 title="Schedule Timeline Event"

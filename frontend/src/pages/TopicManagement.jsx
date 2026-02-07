@@ -1165,14 +1165,6 @@ const TopicManagement = () => {
                                 <Button
                                     type="text"
                                     block
-                                    icon={<DesktopOutlined />}
-                                    {...navButtonInteractions('class')}
-                                >
-                                    {!collapsed && "Class Monitoring"}
-                                </Button>
-                                <Button
-                                    type="text"
-                                    block
                                     icon={<CloudUploadOutlined />}
                                     onClick={() => navigate('/mentoring')}
                                     {...navButtonInteractions('mentoring')}
@@ -1338,6 +1330,11 @@ const TopicManagement = () => {
                         destroyOnHidden
                         forceRender
                     >
+                        {!editingTopic && (
+                            <Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
+                                Projects are created after a topic is approved.
+                            </Text>
+                        )}
                         <Form layout="vertical" form={topicForm}>
                             <Form.Item
                                 label="Topic title"

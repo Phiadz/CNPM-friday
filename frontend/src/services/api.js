@@ -72,6 +72,9 @@ export const projectService = {
     // params might be search/filter
     return api.get('/projects', { params });
   },
+  getDetail: async (projectId) => {
+    return api.get(`/projects/${projectId}`);
+  },
   claim: async (projectId) => {
     return api.patch(`/projects/${projectId}/claim`);
   }
@@ -89,11 +92,8 @@ export const teamService = {
     return api.get(`/teams/${teamId}`);
   },
   join: async (teamId, data) => {
-    // data might contain password if required
-    return api.post(`/teams/${teamId}/join`, data);
-  },
-  joinByCode: async (code) => {
-    return api.post('/teams/join', { join_code: code });
+    // data should contain { join_code: "..." }
+    return api.post(`/teams/${teamId}/join`, null, { params: data });
   },
   leave: async (teamId) => {
     return api.post(`/teams/${teamId}/leave`);
@@ -144,7 +144,7 @@ export const taskService = {
 };
 
 export const subjectService = {
-  getAll: async () => api.get('/subjects'),
+  getAll: async (params) => api.get('/subjects', { params }),
   create: async (data) => api.post('/subjects', data),
   update: async (id, data) => api.put(`/subjects/${id}`, data),
   delete: async (id) => api.delete(`/subjects/${id}`)
@@ -157,14 +157,14 @@ export const topicService = {
 };
 
 export const classService = {
-  getAll: async () => api.get('/classes'),
-  create: async (data) => api.post('/classes', data),
-  update: async (id, data) => api.put(`/classes/${id}`, data),
-  delete: async (id) => api.delete(`/classes/${id}`)
+  getAll: async (params) => api.get('/academic-classes', { params }),
+  create: async (data) => api.post('/academic-classes', data),
+  update: async (id, data) => api.put(`/academic-classes/${id}`, data),
+  delete: async (id) => api.delete(`/academic-classes/${id}`)
 };
 
 export const semesterService = {
-  getAll: async () => api.get('/semesters'),
+  getAll: async (params) => api.get('/semesters', { params }),
   create: async (data) => api.post('/semesters', data),
   delete: async (id) => api.delete(`/semesters/${id}`)
 

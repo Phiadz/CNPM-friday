@@ -19,8 +19,8 @@ const ChatSidebar = ({
     const [form] = Form.useForm();
 
     const teamOptions = useMemo(() => (teams || []).map((team) => ({
-        label: team.name,
-        value: team.id
+        label: team.name || team.team_name,
+        value: team.team_id || team.id
     })), [teams]);
 
     const handleSubmit = async () => {

@@ -5,7 +5,7 @@ import {
     SettingOutlined, BellOutlined, SearchOutlined,
     DashboardOutlined, TeamOutlined, DesktopOutlined, TableOutlined,
     FileTextOutlined, VideoCameraOutlined, SendOutlined, FormOutlined, MessageOutlined,
-    LogoutOutlined, LeftOutlined, RightOutlined, FolderOutlined
+    LogoutOutlined, LeftOutlined, RightOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useAuth, resolveRoleName } from './AuthContext';
@@ -156,14 +156,8 @@ const MainLayout = ({ children }) => {
                                 <div style={navButtonStyles('chat', '/chat')} onClick={() => navigate('/chat')} onMouseEnter={() => setHoveredNav('chat')} onMouseLeave={() => setHoveredNav(null)}>
                                     <MessageOutlined /> {!collapsed && <span style={{ marginLeft: 10 }}>Team Chat</span>}
                                 </div>
-                                <div style={navButtonStyles('workspace', '/workspace')} onClick={() => message.info('Coming soon')} onMouseEnter={() => setHoveredNav('workspace')} onMouseLeave={() => setHoveredNav(null)}>
-                                    <DesktopOutlined /> {!collapsed && <span style={{ marginLeft: 10 }}>Real-time Workspace</span>}
-                                </div>
                                 <div style={navButtonStyles('kanban', '/kanban')} onClick={() => navigate('/kanban')} onMouseEnter={() => setHoveredNav('kanban')} onMouseLeave={() => setHoveredNav(null)}>
                                     <TableOutlined /> {!collapsed && <span style={{ marginLeft: 10 }}>Kanban Board Detail</span>}
-                                </div>
-                                <div style={navButtonStyles('whiteboard', '/whiteboard')} onClick={() => message.info('Coming soon')} onMouseEnter={() => setHoveredNav('whiteboard')} onMouseLeave={() => setHoveredNav(null)}>
-                                    <FormOutlined /> {!collapsed && <span style={{ marginLeft: 10 }}>Whiteboard Canvas</span>}
                                 </div>
                                 <div style={navButtonStyles('video', '/video')} onClick={() => navigate('/video')} onMouseEnter={() => setHoveredNav('video')} onMouseLeave={() => setHoveredNav(null)}>
                                     <VideoCameraOutlined /> {!collapsed && <span style={{ marginLeft: 10 }}>Video Meeting Room</span>}
@@ -173,9 +167,6 @@ const MainLayout = ({ children }) => {
                                 </div>
                                 <div style={navButtonStyles('peer', '/peer-review')} onClick={() => navigate('/peer-review')} onMouseEnter={() => setHoveredNav('peer')} onMouseLeave={() => setHoveredNav(null)}>
                                     <FileTextOutlined /> {!collapsed && <span style={{ marginLeft: 10 }}>Peer Review Form</span>}
-                                </div>
-                                <div style={navButtonStyles('resources', '/resources')} onClick={() => navigate('/resources')} onMouseEnter={() => setHoveredNav('resources')} onMouseLeave={() => setHoveredNav(null)}>
-                                    <FolderOutlined /> {!collapsed && <span style={{ marginLeft: 10 }}>Files & Documents</span>}
                                 </div>
                             </Space>
                         </div>

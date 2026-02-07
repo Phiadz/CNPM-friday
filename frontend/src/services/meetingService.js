@@ -85,14 +85,24 @@ const remoteStreams = new Map();
  */
 export const initPeer = (peerId, options = {}) => {
     return new Promise((resolve, reject) => {
-        peer = new Peer(peerId, {
-            host: import.meta.env.VITE_PEER_HOST || 'localhost',
+        const isLocalHost = !import.meta.env.VITE_PEER_HOST || import.meta.env.VITE_PEER_HOST === 'localhost';
+
+        // If it's localhost and we're not explicitly told to use it, default to cloud for cross-machine support
+        const config = isLocalHost ? {
+            debug: import.meta.env.DEV ? 2 : 0,
+            ...options
+        } : {
+            host: import.meta.env.VITE_PEER_HOST,
             port: import.meta.env.VITE_PEER_PORT || 9000,
             path: '/peerjs',
             secure: import.meta.env.VITE_PEER_SECURE === 'true',
             debug: import.meta.env.DEV ? 2 : 0,
             ...options
-        });
+        };
+
+        console.log('🔗 Initializing PeerJS with:', peerId, isLocalHost ? '(Public Cloud)' : '(Custom Server)');
+
+        peer = new Peer(peerId, config);
 
         peer.on('open', (id) => {
             console.log('✅ PeerJS connected with ID:', id);
@@ -100,11 +110,14 @@ export const initPeer = (peerId, options = {}) => {
         });
 
         peer.on('error', (error) => {
-            console.error('PeerJS error:', error);
+            console.error('❌ PeerJS error:', error.type, error);
             reject(error);
         });
 
-        peer.on('call', handleIncomingCall);
+        peer.on('call', (call) => {
+            console.log('📞 Received call from:', call.peer);
+            handleIncomingCall(call);
+        });
     });
 };
 
@@ -114,6 +127,12 @@ export const initPeer = (peerId, options = {}) => {
  */
 export const getLocalStream = async (constraints = { video: true, audio: true }) => {
     try {
+        if (localStream) {
+            const hasLiveTrack = localStream.getTracks().some(track => track.readyState === 'live');
+            if (hasLiveTrack) {
+                return localStream;
+            }
+        }
         localStream = await navigator.mediaDevices.getUserMedia(constraints);
         return localStream;
     } catch (error) {
@@ -144,6 +163,11 @@ export const callPeer = async (remotePeerId, stream = null) => {
             console.log('📹 Received remote stream from:', remotePeerId);
             calls.set(remotePeerId, call);
             remoteStreams.set(remotePeerId, remoteStream);
+
+            // Emit event for UI
+            window.dispatchEvent(new CustomEvent('peer-stream', {
+                detail: { peerId: remotePeerId, stream: remoteStream }
+            }));
             resolve(remoteStream);
         });
 
@@ -151,6 +175,11 @@ export const callPeer = async (remotePeerId, stream = null) => {
             console.log('Call closed with:', remotePeerId);
             calls.delete(remotePeerId);
             remoteStreams.delete(remotePeerId);
+
+            // Emit event for UI to remove participant
+            window.dispatchEvent(new CustomEvent('peer-disconnected', {
+                detail: { peerId: remotePeerId }
+            }));
         });
 
         call.on('error', (error) => {
@@ -179,6 +208,17 @@ const handleIncomingCall = (call) => {
             // Emit custom event để UI có thể handle
             window.dispatchEvent(new CustomEvent('peer-stream', {
                 detail: { peerId: call.peer, stream: remoteStream }
+            }));
+        });
+
+        call.on('close', () => {
+            console.log('Call closed from:', call.peer);
+            calls.delete(call.peer);
+            remoteStreams.delete(call.peer);
+
+            // Emit event for UI to remove participant
+            window.dispatchEvent(new CustomEvent('peer-disconnected', {
+                detail: { peerId: call.peer }
             }));
         });
     }

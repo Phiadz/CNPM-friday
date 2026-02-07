@@ -12,8 +12,7 @@ import {
     LogoutOutlined,
     LeftOutlined,
     RightOutlined,
-    CloudUploadOutlined,
-    FolderOutlined
+    CloudUploadOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useAuth, resolveRoleName } from './AuthContext';
@@ -248,15 +247,6 @@ const LecturerLayout = ({ children }) => {
                                 <Button
                                     type="text"
                                     block
-                                    icon={<DesktopOutlined />}
-                                    onClick={() => message.info('Coming soon')}
-                                    {...navButtonInteractions('class')}
-                                >
-                                    {!collapsed && "Class Monitoring"}
-                                </Button>
-                                <Button
-                                    type="text"
-                                    block
                                     icon={<CloudUploadOutlined />}
                                     onClick={() => navigate('/mentoring')}
                                     {...navButtonInteractions('mentoring', { active: isActive('/mentoring') })}
@@ -271,15 +261,6 @@ const LecturerLayout = ({ children }) => {
                                     {...navButtonInteractions('grading', { active: isActive('/evaluations') })}
                                 >
                                     {!collapsed && "Grading & Feedback"}
-                                </Button>
-                                <Button
-                                    type="text"
-                                    block
-                                    icon={<FolderOutlined />}
-                                    onClick={() => navigate('/resources')}
-                                    {...navButtonInteractions('resources', { active: isActive('/resources') })}
-                                >
-                                    {!collapsed && "Files & Documents"}
                                 </Button>
                             </Space>
                         </div>

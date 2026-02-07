@@ -10,11 +10,24 @@ import api from './api';
 // ============ SUBMISSIONS ============
 
 /**
- * Nộp bài cho milestone
- * @param {object} submissionData - { milestone_id, team_id, title, content?, file_url? }
+ * Nộp bài cho checkpoint
+ * @param {object} submissionData - { checkpoint_id, team_id, content, file_url? }
  */
 export const createSubmission = async (submissionData) => {
   const response = await api.post('/submissions/', submissionData);
+  return response.data;
+};
+
+/**
+ * Upload submission file
+ * @param {File} file - File object
+ */
+export const uploadSubmissionFile = async (file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await api.post('/submissions/upload', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  });
   return response.data;
 };
 
@@ -52,7 +65,7 @@ export const updateSubmission = async (submissionId, updateData) => {
  * @param {object} gradeData - { score, feedback? }
  */
 export const gradeSubmission = async (submissionId, gradeData) => {
-  const response = await api.post(`/submissions/${submissionId}/grade`, gradeData);
+  const response = await api.patch(`/submissions/${submissionId}/grade`, gradeData);
   return response.data;
 };
 
@@ -75,7 +88,7 @@ export const formatScore = (score) => {
   if (score === null || score === undefined) {
     return { text: 'Chưa chấm', color: 'default' };
   }
-  
+
   if (score >= 8) {
     return { text: score.toFixed(1), color: 'green' };
   } else if (score >= 6) {
@@ -113,6 +126,7 @@ export const formatSubmissionTime = (submittedAt) => {
 
 export default {
   createSubmission,
+  uploadSubmissionFile,
   getSubmissions,
   getSubmission,
   updateSubmission,

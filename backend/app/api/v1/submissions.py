@@ -1,19 +1,22 @@
 """API endpoints for Submission management."""
 
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
-from uuid import UUID
+from pathlib import Path
+from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_current_user, get_db
+from app.core.config import settings
 from app.models.all_models import (
     Checkpoint,
     Evaluation,
     Milestone,
+    Project,
     Submission,
     Team,
     TeamMember,
@@ -31,6 +34,9 @@ from app.schemas.submission import (
 )
 
 router = APIRouter(prefix="/submissions", tags=["submissions"])
+
+UPLOAD_ROOT = Path(settings.ROOT_DIR) / "uploads" / "submissions"
+UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
 
 
 # ==========================================
@@ -68,7 +74,7 @@ async def verify_team_membership(
     """Verify if user is a member of the team."""
     query = select(TeamMember).where(
         TeamMember.team_id == team_id,
-        TeamMember.student_id == user_id
+        TeamMember.user_id == user_id
     )
     result = await db.execute(query)
     member = result.scalar_one_or_none()
@@ -78,6 +84,41 @@ async def verify_team_membership(
 # ==========================================
 # SUBMISSION ENDPOINTS
 # ==========================================
+
+@router.post(
+    "/upload",
+    summary="Upload submission file"
+)
+async def upload_submission_file(
+    request: Request,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Upload a submission file and return a public URL.
+    """
+    if not file.filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Missing file name"
+        )
+
+    suffix = Path(file.filename).suffix
+    stored_name = f"{uuid4().hex}{suffix}"
+    file_path = UPLOAD_ROOT / stored_name
+
+    contents = await file.read()
+    if not contents:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Empty file"
+        )
+
+    file_path.write_bytes(contents)
+
+    base_url = str(request.base_url)
+    file_url = f"{base_url}uploads/submissions/{stored_name}"
+    return {"file_url": file_url, "file_name": file.filename}
 
 @router.post(
     "",
@@ -101,11 +142,72 @@ async def create_submission(
     - Deadline enforcement (marks as late if past due date)
     - Only one submission per team per checkpoint allowed
     """
+    # Resolve checkpoint (use latest for team if not provided)
+    checkpoint_id = submission_data.checkpoint_id
+    if checkpoint_id is None:
+        latest_checkpoint_query = (
+            select(Checkpoint)
+            .where(Checkpoint.team_id == submission_data.team_id)
+            .order_by(Checkpoint.checkpoint_id.desc())
+            .limit(1)
+        )
+        latest_checkpoint_result = await db.execute(latest_checkpoint_query)
+        latest_checkpoint = latest_checkpoint_result.scalar_one_or_none()
+        if not latest_checkpoint:
+            team_result = await db.execute(
+                select(Team).where(Team.team_id == submission_data.team_id)
+            )
+            team = team_result.scalar_one_or_none()
+            if not team:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Team not found"
+                )
+
+            if not team.project_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Team has no project assigned. Ask a lecturer to create a project first."
+                )
+
+            project_result = await db.execute(
+                select(Project).where(Project.project_id == team.project_id)
+            )
+            project = project_result.scalar_one_or_none()
+            if not project or not project.class_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Project has no class to create a checkpoint"
+                )
+
+            milestone = Milestone(
+                class_id=project.class_id,
+                title="Auto Milestone",
+                description="Auto-created milestone for submissions",
+                due_date=datetime.now(timezone.utc) + timedelta(days=7),
+                created_by=current_user.user_id,
+            )
+            db.add(milestone)
+            await db.flush()
+
+            checkpoint = Checkpoint(
+                team_id=team.team_id,
+                milestone_id=milestone.milestone_id,
+                title="Auto Checkpoint",
+                status="pending",
+            )
+            db.add(checkpoint)
+            await db.commit()
+            await db.refresh(checkpoint)
+            checkpoint_id = checkpoint.checkpoint_id
+        else:
+            checkpoint_id = latest_checkpoint.checkpoint_id
+
     # Verify checkpoint exists and load related milestone
     checkpoint_query = (
         select(Checkpoint)
         .options(selectinload(Checkpoint.milestone))
-        .where(Checkpoint.checkpoint_id == submission_data.checkpoint_id)
+        .where(Checkpoint.checkpoint_id == checkpoint_id)
     )
     checkpoint_result = await db.execute(checkpoint_query)
     checkpoint = checkpoint_result.scalar_one_or_none()
@@ -138,7 +240,7 @@ async def create_submission(
     
     # Check if submission already exists
     existing_query = select(Submission).where(
-        Submission.checkpoint_id == submission_data.checkpoint_id
+        Submission.checkpoint_id == checkpoint_id
     )
     existing_result = await db.execute(existing_query)
     existing_submission = existing_result.scalar_one_or_none()
@@ -164,7 +266,7 @@ async def create_submission(
     
     # Create submission
     new_submission = Submission(
-        checkpoint_id=submission_data.checkpoint_id,
+        checkpoint_id=checkpoint_id,
         submitted_by=current_user.user_id,
         content=submission_data.content,
         file_url=submission_data.file_url

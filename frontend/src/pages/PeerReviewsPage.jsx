@@ -33,11 +33,13 @@ const PeerReviewsPage = () => {
             if (!user) return;
             try {
                 const res = await teamService.getAll();
-                const myTeams = res.data.filter(t => t.leader_id === user.user_id || t.leader_id === user.id);
+                const teamsData = res.data.teams || [];
+                // Allow members to see teams they belong to
+                const myTeams = teamsData.filter(t => t.is_member);
                 setTeams(myTeams);
 
                 if (myTeams.length > 0) {
-                    setSelectedTeamId(myTeams[0].id);
+                    setSelectedTeamId(myTeams[0].team_id || myTeams[0].id);
                 }
             } catch (error) {
                 console.error("Failed to fetch teams", error);
@@ -63,13 +65,13 @@ const PeerReviewsPage = () => {
                     user_id: m.student_id || m.user_id || m.id,
                     role: m.role || (m.student_id === res.data.leader_id ? 'Leader' : 'Member')
                 }));
-                setTeamMembers(members);
+                // Filter out self from review list (cannot review self)
+                setTeamMembers(members.filter(m => m.user_id !== user.user_id && m.user_id !== user.id));
 
                 // Fetch my submitted reviews to check progress
-                // getMyReviews returns reviews *authored by me*
-                const myReviewsRes = await peerReviewService.getMyReviews(selectedTeamId);
-                // The API might return an array of objects { reviewee_id, ... }
-                // Adjust based on actual API response structure (assuming array)
+                // Use getTeamPeerReviews which returns reviews created by me
+                const myReviewsRes = await peerReviewService.getTeamPeerReviews(selectedTeamId);
+                // Filter to get unique reviewee_ids (since we only send 1 review per person now)
                 const reviewedIds = new Set((myReviewsRes || []).map(r => r.reviewee_id));
                 setSubmittedReviews(reviewedIds);
 
@@ -92,31 +94,25 @@ const PeerReviewsPage = () => {
     const handleModalOk = async () => {
         setLoading(true);
         try {
-            // Calculate average score
+            // Calculate average score from 3 criteria
             const averageScore = Math.round(
-                ((scores.collaboration + scores.communication + scores.contribution) / 3) * 100
-            ) / 100;
+                (scores.collaboration + scores.communication + scores.contribution) / 3
+            );
 
-            const reviewData = {
+            // Send one review with average score
+            await peerReviewService.createPeerReview({
                 team_id: selectedTeamId,
                 reviewee_id: currentReviewee.user_id,
-                score: averageScore, // Backend expects a single score
-                feedback: comment,
-                // Optional: keep detailed scores in criteria if backend supports it
-                criteria: {
-                    collaboration: scores.collaboration,
-                    communication: scores.communication,
-                    contribution: scores.contribution
-                }
-            };
-
-            await peerReviewService.createPeerReview(reviewData);
+                criteria_name: "overall", // Use "overall" for average score
+                score: averageScore,
+                comment: comment || null
+            });
 
             message.success(`Submitted review for ${currentReviewee.full_name || currentReviewee.name}`);
             setSubmittedReviews(prev => new Set(prev).add(currentReviewee.user_id));
             setIsModalOpen(false);
         } catch (error) {
-            console.error(error);
+            console.error('Peer review error:', error);
             message.error('Failed to submit review');
         } finally {
             setLoading(false);
@@ -134,7 +130,7 @@ const PeerReviewsPage = () => {
                 <Text style={{ fontSize: '16px' }}>Rate and comment on your teammates</Text>
             </div>
 
-            <Card style={{ borderRadius: 12, minHeight: 500 }} bodyStyle={{ padding: 32 }}>
+            <Card style={{ borderRadius: 12, minHeight: 500 }} styles={{ body: { padding: 32 } }}>
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
                     <Title level={4} style={{ margin: 0 }}>Team Members</Title>
@@ -148,7 +144,7 @@ const PeerReviewsPage = () => {
                                 placeholder="Select a team"
                             >
                                 {teams.map(team => (
-                                    <Option key={team.id} value={team.id}>{team.name}</Option>
+                                    <Option key={team.team_id || team.id} value={team.team_id || team.id}>{team.name}</Option>
                                 ))}
                             </Select>
                         </Space>
@@ -156,7 +152,7 @@ const PeerReviewsPage = () => {
                 </div>
 
                 {teams.length === 0 ? (
-                    <Empty description="You are not a Leader of any team to perform reviews." />
+                    <Empty description="You are not a member of any team to perform reviews." />
                 ) : (
                     <List
                         itemLayout="horizontal"
@@ -203,7 +199,7 @@ const PeerReviewsPage = () => {
                 footer={null}
                 width={600}
                 centered
-                bodyStyle={{ padding: 0, borderRadius: 12, overflow: 'hidden' }}
+                styles={{ body: { padding: 0, borderRadius: 12, overflow: 'hidden' } }}
             >
                 <div style={{ background: '#f5f5f5', padding: '24px 24px 40px' }}>
                     <Title level={4} style={{ textAlign: 'center', marginBottom: 24 }}>Peer Evaluation</Title>

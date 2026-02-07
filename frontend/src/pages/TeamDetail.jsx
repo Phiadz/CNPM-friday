@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Layout, Typography, Button, Descriptions, message, Card, List, Avatar, Space, Tag } from 'antd';
-import { UserOutlined, ArrowLeftOutlined } from '@ant-design/icons';
+import { Typography, Button, Descriptions, message, Card, List, Avatar, Space, Tag, Modal, Form, Input, Table, Select } from 'antd';
+import { UserOutlined, ArrowLeftOutlined, DownOutlined } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
 import { teamService } from '../services/api';
+import MainLayout from '../components/MainLayout';
 
 const { Title, Text } = Typography;
-const { Content } = Layout;
+const { Option } = Select;
 
 const TeamDetail = () => {
     const { teamId } = useParams();
@@ -19,6 +20,9 @@ const TeamDetail = () => {
     const [joinForm] = Form.useForm();
     const [isMember, setIsMember] = useState(false);
     const [isLeader, setIsLeader] = useState(false);
+    const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
+    const [claimedProjects, setClaimedProjects] = useState([]);
+    const [projectForm] = Form.useForm();
 
     const fetchTeamDetail = async () => {
         setLoading(true);
@@ -33,8 +37,25 @@ const TeamDetail = () => {
         }
     };
 
+    const fetchClaimedProjects = async () => {
+        try {
+            const res = await fetch('/api/v1/projects?claimed_by_me=true', {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                }
+            });
+            const data = await res.json();
+            setClaimedProjects(data.projects || []);
+        } catch (error) {
+            console.error('Failed to fetch claimed projects:', error);
+        }
+    };
+
     useEffect(() => {
-        if (teamId) fetchTeamDetail();
+        if (teamId) {
+            fetchTeamDetail();
+            fetchClaimedProjects();
+        }
     }, [teamId]);
 
     useEffect(() => {
@@ -42,14 +63,14 @@ const TeamDetail = () => {
             // Check if user is leader
             setIsLeader(team.leader_id === user.user_id || team.leader_id === user.id);
             // Check if user is member
-            const memberFound = team.members?.find(m => m.student_id === user.user_id || m.student_id === user.id || m.id === user.id);
+            const memberFound = team.members?.find(m => m.user_id === user.user_id || m.user_id === user.id);
             setIsMember(!!memberFound);
         }
     }, [team, user]);
 
     const handleJoinSubmit = async (values) => {
         try {
-            await teamService.joinByCode(values.join_code);
+            await teamService.join(teamId, { join_code: values.join_code });
             message.success("Joined team successfully");
             setIsJoinModalOpen(false);
             fetchTeamDetail();
@@ -62,84 +83,247 @@ const TeamDetail = () => {
         try {
             await teamService.leave(teamId);
             message.success("Left team successfully");
-            // Update state immediately for better UX
-            setIsMember(false);
-            fetchTeamDetail();
+            navigate('/teams');
         } catch (error) {
             message.error(error.response?.data?.detail || "Failed to leave team");
         }
     };
 
+    const handleFinalize = async () => {
+        try {
+            // Confirm dialog could be added here
+            await teamService.finalize(teamId);
+            message.success("Team finalized");
+            fetchTeamDetail();
+        } catch (error) {
+            message.error("Failed to finalize team");
+        }
+    };
+
+    const handleSelectProject = () => {
+        // According to user request: navigate to project list view with current team ID
+        navigate(`/projects?teamId=${teamId}`);
+    };
+
     // ... (handleFinalize etc)
 
+    // ... (handleFinalize etc)
+
+    // ... (handleFinalize etc)
+
+    if (loading) {
+        return (
+            <MainLayout>
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+                    <div style={{ fontSize: '18px' }}>Loading team details...</div>
+                </div>
+            </MainLayout>
+        );
+    }
+
+    if (!team) {
+        return (
+            <MainLayout>
+                <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+                    <div style={{ fontSize: '18px', color: 'red' }}>Team not found or failed to load.</div>
+                    <Button onClick={() => navigate('/teams')} style={{ marginTop: 16 }}>Back to Teams</Button>
+                </div>
+            </MainLayout>
+        );
+    }
+
+    const columns = [
+        {
+            title: 'Member',
+            key: 'member',
+            render: (_, record) => {
+                const role = record.role || 'Member';
+                const isLeader = String(role).toUpperCase() === 'LEADER';
+                return (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <Avatar size={48} src={record.avatar_url} icon={<UserOutlined />} />
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <Text strong style={{ fontSize: 16 }}>{record.full_name || record.name}</Text>
+                            <Tag color={isLeader ? 'gold' : 'default'} style={{ width: 'fit-content', marginTop: 4 }}>
+                                {isLeader ? 'Leader' : 'Member'}
+                            </Tag>
+                        </div>
+                    </div>
+                );
+            }
+        },
+        {
+            title: 'Roles',
+            key: 'roles',
+            render: (_, record) => {
+                const role = record.role || 'Member';
+                const isLeader = String(role).toUpperCase() === 'LEADER';
+                return (
+                    <Button style={{
+                        background: '#fff',
+                        border: '1px solid #d9d9d9',
+                        borderRadius: 6,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        padding: '4px 12px',
+                        height: 'auto'
+                    }}>
+                        <span style={{ fontWeight: 500 }}>{isLeader ? 'Leader' : 'Member'}</span>
+                        <DownOutlined style={{ fontSize: 10, color: '#bfbfbf' }} /> {/* Placeholder for logic */}
+                    </Button>
+                );
+            }
+        },
+        {
+            title: 'Contact Info',
+            key: 'contact',
+            render: (_, record) => (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{ width: 24, height: 24, background: '#f0f0f0', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <div style={{ textDecoration: 'none', color: '#8c8c8c' }}>@</div>
+                        </div>
+                        <Text style={{ color: '#595959' }}>{record.email || 'No email'}</Text>
+                    </div>
+                    {/* Mock Phone */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{ width: 24, height: 24, background: '#f0f0f0', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <div style={{ color: '#8c8c8c', fontSize: 12 }}>📞</div>
+                        </div>
+                        <Text style={{ color: '#595959' }}>+84 0903449932</Text>
+                    </div>
+                </div>
+            )
+        },
+        {
+            title: 'Status',
+            key: 'status',
+            render: (_, record) => {
+                // Using join_code presence or is_active from dummy logic for now
+                const isActive = true; // record.is_active; // Check actual field
+                return (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: isActive ? '#52c41a' : '#ff4d4f' }} />
+                        <Text style={{ color: isActive ? '#52c41a' : '#ff4d4f' }}>{isActive ? 'Active' : 'Offline'}</Text>
+                    </div>
+                );
+            }
+        },
+        {
+            title: 'Action',
+            key: 'action',
+            render: () => (
+                <Button icon={<span style={{ fontSize: 16 }}>✏️</span>}>Edit</Button>
+            )
+        }
+    ];
+
     return (
-        <Layout style={{ minHeight: '100vh', padding: '24px' }}>
-            <Content>
-                <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/teams')} style={{ marginBottom: 16 }}>
-                    Back to Teams
+        <MainLayout>
+            <div style={{ marginBottom: 24 }}>
+                <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/teams')} style={{ border: 'none', background: 'transparent', padding: 0, fontSize: 16 }}>
+                    Back
                 </Button>
+            </div>
 
-                <Card title={<Title level={3}>{team.name}</Title>} extra={
-                    <Space>
-                        {!isMember && (
-                            <Button type="primary" onClick={() => setIsJoinModalOpen(true)}>Join Team</Button>
-                        )}
-                        {isMember && !isLeader && (
-                            <Button danger onClick={handleLeave}>Leave Team</Button>
-                        )}
-                        {isLeader && (
+            <div style={{ background: '#e6e6e6', borderRadius: 24, padding: '32px', minHeight: '80vh' }}>
+
+                {/* Header Section */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 32 }}>
+                    <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                            <Title level={2} style={{ margin: 0, fontWeight: 'normal' }}>Team Members</Title>
+                            {team.project_id && (
+                                <Tag color="blue" style={{ fontSize: 14, padding: '2px 8px' }}>
+                                    Project ID: {team.project_id}
+                                </Tag>
+                            )}
+                        </div>
+                        <Text style={{ fontSize: 16, color: '#595959' }}>Manage team members, roles</Text>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 12 }}>
+
+                        {isLeader ? (
                             <>
-                                <Button onClick={handleFinalize} disabled={team.is_finalized}>Finalize</Button>
-                                <Button onClick={handleSelectProject} disabled={team.is_finalized}>Select Project</Button>
+                                <Button
+                                    onClick={handleFinalize}
+                                    disabled={team.is_finalized}
+                                    style={{ height: 40, borderRadius: 8, border: 'none', fontWeight: 500 }}
+                                >
+                                    Finalize
+                                </Button>
+                                {!team.project_id && (
+                                    <Button
+                                        onClick={handleSelectProject}
+                                        disabled={team.is_finalized}
+                                        type="primary"
+                                        style={{ height: 40, borderRadius: 8, border: 'none', fontWeight: 500 }}
+                                    >
+                                        Select Project
+                                    </Button>
+                                )}
+                                {!team.is_finalized && (
+                                    <div style={{
+                                        background: '#fff',
+                                        padding: '0 16px',
+                                        height: 40,
+                                        borderRadius: 8,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 8,
+                                        fontWeight: 500
+                                    }}>
+                                        <span>Join Code:</span>
+                                        <Text copyable strong>{team.join_code}</Text>
+                                    </div>
+                                )}
                             </>
+                        ) : (
+                            <Button
+                                onClick={handleLeave}
+                                icon={<span style={{ fontSize: 16 }}>🚪</span>} // Using emoji as icon placeholder
+                                style={{
+                                    height: 40,
+                                    borderRadius: 8,
+                                    border: 'none',
+                                    fontWeight: 500,
+                                    background: '#fff',
+                                    color: '#ff4d4f'
+                                }}
+                            >
+                                Leave Team
+                            </Button>
                         )}
-                    </Space>
-                }>
-                    <Descriptions bordered column={1}>
-                        <Descriptions.Item label="Description">{team.description || 'No description'}</Descriptions.Item>
-                        <Descriptions.Item label="Project">{team.project?.title || 'None selected'}</Descriptions.Item>
-                        <Descriptions.Item label="Status">{team.is_finalized ? <Tag color="red">Finalized</Tag> : <Tag color="green">Active</Tag>}</Descriptions.Item>
 
-                        {/* Only Leader sees Join Code */}
-                        {isLeader && !team.is_finalized && (
-                            <Descriptions.Item label="Join Code">
-                                <Text copyable strong style={{ fontSize: '16px', color: '#1890ff' }}>{team.join_code || 'N/A'}</Text>
-                                <div style={{ fontSize: '12px', color: '#888' }}>Share this code with students you want to invite.</div>
-                            </Descriptions.Item>
-                        )}
-                    </Descriptions>
+                    </div>
+                </div>
 
-                    <Title level={4} style={{ marginTop: 24 }}>Members</Title>
-                    <List
-                        itemLayout="horizontal"
-                        dataSource={team.members || []}
-                        renderItem={(member) => (
-                            <List.Item>
-                                <List.Item.Meta
-                                    avatar={<Avatar icon={<UserOutlined />} src={member.avatar_url} />}
-                                    title={member.full_name || member.name}
-                                    description={member.email}
-                                />
-                                {member.role === 'Leader' ? <Tag color="gold">Leader</Tag> : <Tag>Member</Tag>}
-                            </List.Item>
-                        )}
-                    />
-                </Card>
+                {/* Table */}
+                <Table
+                    dataSource={team.members || []}
+                    columns={columns}
+                    rowKey="user_id"
+                    pagination={false}
+                    style={{ background: 'transparent' }}
+                // rowClassName={() => 'team-member-row'}
+                />
+            </div>
 
-                <Modal
-                    title="Join Team"
-                    open={isJoinModalOpen}
-                    onCancel={() => setIsJoinModalOpen(false)}
-                    onOk={() => joinForm.submit()}
-                >
-                    <Form form={joinForm} layout="vertical" onFinish={handleJoinSubmit}>
-                        <Form.Item name="join_code" label="Enter Join Code" rules={[{ required: true }]}>
-                            <Input placeholder="Team code..." />
-                        </Form.Item>
-                    </Form>
-                </Modal>
-            </Content>
-        </Layout>
+            <Modal
+                title="Join Team"
+                open={isJoinModalOpen}
+                onCancel={() => setIsJoinModalOpen(false)}
+                onOk={() => joinForm.submit()}
+            >
+                <Form form={joinForm} layout="vertical" onFinish={handleJoinSubmit}>
+                    <Form.Item name="join_code" label="Enter Join Code" rules={[{ required: true }]}>
+                        <Input placeholder="Team code..." />
+                    </Form.Item>
+                </Form>
+            </Modal>
+        </MainLayout >
     );
 };
 

@@ -36,6 +36,7 @@ class TaskCreate(TaskBase):
     title: str
     sprint_id: Optional[int] = None
     description: Optional[str] = None
+    status: Optional[str] = "TODO"
     assigned_to: Optional[UUID] = None
     priority: str = "MEDIUM"
     due_date: Optional[datetime] = None

@@ -83,6 +83,7 @@ async def register_user(
         password_hash=hashed_password,
         full_name=user_in.full_name,
         role_id=user_in.role_id,
+        dept_id=user_in.dept_id,
         is_active=True,
     )
     

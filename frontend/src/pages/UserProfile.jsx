@@ -42,7 +42,7 @@ const UserProfile = () => {
   });
 
   const [avatarUrl, setAvatarUrl] = useState(() => {
-    return user?.avatar_url || localStorage.getItem('user_avatar') || null;
+    return user?.avatar_url || null;
   });
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -95,40 +95,53 @@ const UserProfile = () => {
     fetchProfile();
   }, []);
 
-  // Lưu dữ liệu mỗi khi userData thay đổi (Optional: keep local sync for edits)
+  // Dispatch profile updated event without localStorage to avoid quota errors
   useEffect(() => {
-    if (!canUseStorage()) {
-      return;
-    }
     const payload = { ...userData, _owner: user?.email || null };
-    const profileKey = buildScopedKey('user_profile', user);
-    if (profileKey) {
-      localStorage.setItem(profileKey, JSON.stringify(payload));
-    }
-    localStorage.setItem('user_profile', JSON.stringify(payload));
     window.dispatchEvent(new CustomEvent('profile-updated', { detail: { profile: payload } }));
   }, [userData]);
 
-  const handleFileChange = (event) => {
+  const handleFileChange = async (event) => {
     const file = event.target.files[0];
     if (file) {
       if (file.size > 2 * 1024 * 1024) { // Giới hạn 2MB
         return message.error('Ảnh quá lớn! Vui lòng chọn ảnh dưới 2MB.');
       }
+
       const reader = new FileReader();
-      reader.onloadend = () => {
+      reader.onloadend = async () => {
         const base64String = reader.result;
+
+        // Update local preview immediately
         setAvatarUrl(base64String);
-        if (canUseStorage()) {
-          const avatarKey = buildScopedKey('user_avatar', user);
-          if (avatarKey) {
-            localStorage.setItem(avatarKey, base64String);
+
+        try {
+          // Send to backend API
+          const response = await profileService.updateMe({
+            avatar_url: base64String
+          });
+
+          // Update context with response from backend
+          if (response.data) {
+            updateUser({ avatar_url: response.data.avatar_url || base64String });
           }
-          localStorage.setItem('user_avatar', base64String);
-          window.dispatchEvent(new CustomEvent('avatar-updated', { detail: { avatarUrl: base64String } }));
+
+          message.success('Đã cập nhật ảnh đại diện mới!');
+        } catch (error) {
+          console.error('Failed to update avatar:', error);
+          const detail = error.response?.data?.detail;
+          let errorMsg = 'Không thể lưu ảnh. Vui lòng thử lại.';
+
+          if (Array.isArray(detail)) {
+            errorMsg = detail.map(d => `${d.loc.join('.')}: ${d.msg}`).join(', ');
+          } else if (typeof detail === 'string') {
+            errorMsg = detail;
+          }
+
+          message.error({ content: errorMsg, duration: 5 });
+          // Revert local preview on error
+          setAvatarUrl(user?.avatar_url || null);
         }
-        updateUser({ avatar_url: base64String });
-        message.success('Đã cập nhật ảnh đại diện mới!');
       };
       reader.readAsDataURL(file);
     }
@@ -136,28 +149,43 @@ const UserProfile = () => {
 
   const onUpdateProfile = async (values) => {
     try {
-      const response = await profileService.updateMe(values);
+      // Transform field names to match backend schema
+      const payload = {
+        full_name: values.name,  // Transform 'name' -> 'full_name'
+        phone: values.phone,
+        // email is read-only in backend, don't send it
+      };
+
+      const response = await profileService.updateMe(payload);
       const updatedData = response.data;
 
       setUserData(prev => ({
         ...prev,
-        ...values,
         name: updatedData?.full_name || values.name,
-        email: updatedData?.email || values.email,
-        phone: updatedData?.phone_number || values.phone
+        email: updatedData?.email || prev.email,  // Don't change email
+        phone: updatedData?.phone || values.phone
       }));
 
       updateUser({
-        full_name: values.name || user?.full_name,
-        email: values.email || user?.email,
-        phone: values.phone || user?.phone_number,
+        full_name: updatedData?.full_name || values.name,
+        email: updatedData?.email || user?.email,
+        phone: updatedData?.phone || values.phone,
       });
 
       message.success('Cập nhật thông tin thành công!');
       setIsEditModalOpen(false);
     } catch (error) {
       console.error("Failed to update profile", error);
-      message.error('Failed to update profile. Please try again.');
+      const detail = error.response?.data?.detail;
+      let errorMsg = 'Failed to update profile. Please try again.';
+
+      if (Array.isArray(detail)) {
+        errorMsg = detail.map(d => `${d.loc.join('.')}: ${d.msg}`).join(', ');
+      } else if (typeof detail === 'string') {
+        errorMsg = detail;
+      }
+
+      message.error({ content: errorMsg, duration: 5 });
     }
   };
 
@@ -190,7 +218,7 @@ const UserProfile = () => {
         <Button
           type="text"
           icon={<ArrowLeftOutlined />}
-          onClick={() => navigate('/student')}
+          onClick={() => navigate(getDefaultDashboardPath(user))}
           style={{ marginBottom: 32, fontSize: '16px', padding: 0 }}
         >
           Back to dashboard
@@ -258,12 +286,8 @@ const UserProfile = () => {
           <Form.Item
             name="email"
             label="Email Address"
-            rules={[
-              { required: true, message: 'Please input your email!' },
-              { pattern: /^[a-zA-Z0-9._%+-]+@(gmail\.com|ut\.edu\.vn)$/, message: 'Email must be @gmail.com or @ut.edu.vn' }
-            ]}
           >
-            <Input prefix={<MailOutlined />} />
+            <Input prefix={<MailOutlined />} disabled />
           </Form.Item>
           <Form.Item
             name="phone"

@@ -25,10 +25,7 @@ const LoginPage = () => {
                 <Text type="secondary" style={{ display: 'block', textAlign: 'center', marginBottom: 24 }}>
                     Welcome back! Please login to your account.
                 </Text>
-                <Button icon={<GoogleOutlined />} block style={{ marginBottom: 16 }} disabled>
-                    Continue with Google
-                </Button>
-                <Divider plain>or</Divider>
+                <Divider plain></Divider>
                 <Form
                     form={form}
                     layout="vertical"

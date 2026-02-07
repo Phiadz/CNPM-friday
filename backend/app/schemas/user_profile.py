@@ -18,7 +18,7 @@ import re
 class UserProfileBase(BaseModel):
     """Base schema for user profile data."""
     full_name: Optional[str] = Field(None, max_length=255, description="User's full name")
-    avatar_url: Optional[str] = Field(None, max_length=500, description="URL to user avatar")
+    avatar_url: Optional[str] = Field(None, max_length=10000000, description="URL to user avatar (HTTP or Base64)")
     phone: Optional[str] = Field(None, max_length=20, description="Phone number")
     bio: Optional[str] = Field(None, max_length=1000, description="User biography")
 
@@ -60,15 +60,19 @@ class UserProfileUpdate(UserProfileBase):
     
     @validator('avatar_url')
     def validate_avatar_url(cls, v):
-        """Validate avatar URL format."""
+        """Validate avatar URL format - accepts HTTP URLs and base64 data URLs."""
         if v is None:
             return v
         
-        # Basic URL validation
+        # Allow base64 data URLs (for uploaded images)
+        if v.startswith('data:image/'):
+            return v
+        
+        # Basic HTTP/HTTPS URL validation for external images
         url_pattern = r'^https?://.*\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$'
         if not re.match(url_pattern, v, re.IGNORECASE):
             raise ValueError(
-                'Avatar URL must be a valid image URL (jpg, jpeg, png, gif, webp, svg)'
+                'Avatar URL must be a valid image URL (jpg, jpeg, png, gif, webp, svg) or base64 data URL'
             )
         
         return v
