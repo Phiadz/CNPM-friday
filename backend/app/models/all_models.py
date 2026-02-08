@@ -517,13 +517,17 @@ class MentoringLog(Base):
 
 
 class Resource(Base):
+    """Resource model for files, documents, links shared in teams/classes."""
     __tablename__ = "resources"
     resource_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     uploaded_by: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("users.user_id"))
     class_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("academic_classes.class_id"), nullable=True)
     team_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("teams.team_id", ondelete="CASCADE"), nullable=True)
-    file_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    file_type: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    file_url: Mapped[str] = mapped_column(String, nullable=False)
+    file_type: Mapped[str] = mapped_column(String(50), nullable=False)  # document, link, video, image, etc.
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     uploader: Mapped["User"] = relationship("User", back_populates="uploaded_resources")
     academic_class: Mapped[Optional["AcademicClass"]] = relationship("AcademicClass", back_populates="resources")

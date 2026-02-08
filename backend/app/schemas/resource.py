@@ -21,7 +21,7 @@ class ResourceCreate(BaseModel):
     @field_validator('resource_type')
     @classmethod
     def validate_type(cls, v):
-        allowed = ['link', 'file', 'document', 'video', 'image']
+        allowed = ['link', 'file', 'document', 'video', 'image', 'pdf', 'spreadsheet', 'presentation', 'code', 'other']
         if v.lower() not in allowed:
             raise ValueError(f'resource_type must be one of: {allowed}')
         return v.lower()
@@ -47,7 +47,7 @@ class ResourceUpdate(BaseModel):
     def validate_type(cls, v):
         if v is None:
             return v
-        allowed = ['link', 'file', 'document', 'video', 'image']
+        allowed = ['link', 'file', 'document', 'video', 'image', 'pdf', 'spreadsheet', 'presentation', 'code', 'other']
         if v.lower() not in allowed:
             raise ValueError(f'resource_type must be one of: {allowed}')
         return v.lower()

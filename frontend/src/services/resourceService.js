@@ -54,11 +54,28 @@ export const deleteResource = async (resourceId) => {
   await api.delete(`/resources/${resourceId}`);
 };
 
+/**
+ * Upload file lên server
+ * @param {File} file - File object từ input
+ */
+export const uploadResourceFile = async (file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  
+  const response = await api.post('/resources/upload-file', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  });
+  return response.data;
+};
+
 
 // ============ RESOURCE TYPES ============
 
 export const RESOURCE_TYPES = {
   DOCUMENT: 'document',
+  PDF: 'pdf',
   LINK: 'link',
   VIDEO: 'video',
   IMAGE: 'image',
@@ -70,6 +87,7 @@ export const RESOURCE_TYPES = {
 
 export const RESOURCE_TYPE_LABELS = {
   document: { label: 'Tài liệu', icon: '📄', color: 'blue' },
+  pdf: { label: 'PDF', icon: '📕', color: 'red' },
   link: { label: 'Liên kết', icon: '🔗', color: 'cyan' },
   video: { label: 'Video', icon: '🎬', color: 'red' },
   image: { label: 'Hình ảnh', icon: '🖼️', color: 'green' },
@@ -136,46 +154,56 @@ export const extractFilename = (url) => {
 };
 
 /**
- * Detect resource type từ URL
- * @param {string} url - URL của resource
+ * Detect resource type từ URL hoặc filename
+ * @param {string} url - URL hoặc filename của resource
  */
 export const detectResourceType = (url) => {
   const urlLower = url.toLowerCase();
   
-  // Video platforms
-  if (urlLower.includes('youtube.com') || urlLower.includes('youtu.be') || 
-      urlLower.includes('vimeo.com') || urlLower.match(/\.(mp4|webm|avi|mov)$/)) {
-    return RESOURCE_TYPES.VIDEO;
-  }
-  
-  // Images
-  if (urlLower.match(/\.(jpg|jpeg|png|gif|svg|webp)$/)) {
-    return RESOURCE_TYPES.IMAGE;
+  // PDF
+  if (urlLower.match(/\.(pdf)$/)) {
+    return 'pdf';
   }
   
   // Documents
-  if (urlLower.match(/\.(pdf|doc|docx|txt)$/)) {
-    return RESOURCE_TYPES.DOCUMENT;
-  }
-  
-  // Presentations
-  if (urlLower.match(/\.(ppt|pptx)$/) || urlLower.includes('slides.google.com')) {
-    return RESOURCE_TYPES.PRESENTATION;
+  if (urlLower.match(/\.(doc|docx|txt|odt)$/)) {
+    return 'document';
   }
   
   // Spreadsheets
-  if (urlLower.match(/\.(xls|xlsx|csv)$/) || urlLower.includes('sheets.google.com')) {
-    return RESOURCE_TYPES.SPREADSHEET;
+  if (urlLower.match(/\.(xls|xlsx|csv|ods)$/) || urlLower.includes('sheets.google.com')) {
+    return 'spreadsheet';
+  }
+  
+  // Presentations
+  if (urlLower.match(/\.(ppt|pptx|odp)$/) || urlLower.includes('slides.google.com')) {
+    return 'presentation';
+  }
+  
+  // Images
+  if (urlLower.match(/\.(jpg|jpeg|png|gif|svg|webp|bmp)$/)) {
+    return 'image';
+  }
+  
+  // Videos
+  if (urlLower.includes('youtube.com') || urlLower.includes('youtu.be') || 
+      urlLower.includes('vimeo.com') || urlLower.match(/\.(mp4|webm|avi|mov|mkv)$/)) {
+    return 'video';
   }
   
   // Code repositories
   if (urlLower.includes('github.com') || urlLower.includes('gitlab.com') ||
-      urlLower.includes('bitbucket.org')) {
-    return RESOURCE_TYPES.CODE;
+      urlLower.includes('bitbucket.org') || urlLower.match(/\.(js|ts|py|java|cpp|c|html|css)$/)) {
+    return 'code';
   }
   
-  // Default to link
-  return RESOURCE_TYPES.LINK;
+  // Web links
+  if (urlLower.startsWith('http://') || urlLower.startsWith('https://')) {
+    return 'link';
+  }
+  
+  // Default to other
+  return 'other';
 };
 
 

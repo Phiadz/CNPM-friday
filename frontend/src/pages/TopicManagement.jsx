@@ -658,6 +658,15 @@ const TopicManagement = () => {
         handleRefreshTopics();
     }, [handleRefreshTopics]);
 
+    // Auto-refresh topics every 5 seconds to sync with database changes (e.g., when admin approves topics)
+    useEffect(() => {
+        const refreshInterval = setInterval(() => {
+            handleRefreshTopics();
+        }, 5000); // Refresh every 5 seconds
+
+        return () => clearInterval(refreshInterval);
+    }, [handleRefreshTopics]);
+
     const filteredTopics = useMemo(() => {
         const query = topicSearch.trim().toLowerCase();
         if (!query) {

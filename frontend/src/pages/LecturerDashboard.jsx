@@ -482,6 +482,15 @@ const LecturerDashboard = () => {
         handleLoadTopics();
     }, [handleLoadTopics]);
 
+    // Auto-refresh topics every 5 seconds to sync with database changes (e.g., when admin approves topics)
+    useEffect(() => {
+        const refreshInterval = setInterval(() => {
+            handleLoadTopics();
+        }, 5000); // Refresh every 5 seconds
+
+        return () => clearInterval(refreshInterval);
+    }, [handleLoadTopics]);
+
     const handleLoadSubmissions = useCallback(async () => {
         setSubmissionsLoading(true);
         setSubmissionsError('');
@@ -862,6 +871,15 @@ const LecturerDashboard = () => {
                                     {...navButtonInteractions('grading')}
                                 >
                                     {!collapsed && "Grading & Feedback"}
+                                </Button>
+                                <Button
+                                    type="text"
+                                    block
+                                    icon={<FolderOutlined />}
+                                    onClick={() => navigate('/resources')}
+                                    {...navButtonInteractions('resources')}
+                                >
+                                    {!collapsed && "Files & Documents"}
                                 </Button>
                             </Space>
                         </div>
