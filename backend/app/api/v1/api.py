@@ -76,7 +76,12 @@ api_router.include_router(notifications_router, prefix="/notifications", tags=["
 from app.api.v1.user_import import router as user_import_router
 api_router.include_router(user_import_router, prefix="/user-import", tags=["user-import"])
 
-# ===== PHASE 3 ENDPOINTS (Real-time) =====
+# Bulk Import (Subjects, Classes, Users)
+from app.api.v1.import_endpoints import router as import_router
+api_router.include_router(import_router, prefix="/admin/import", tags=["admin-import"])
+
+# ===== PHASE 3 ENDPOINTS (Real-time) ✅ =====
+# Channels & Messages - Phase 3 Complete
 from app.api.v1.channels import router as channels_router
 api_router.include_router(channels_router, prefix="/channels", tags=["channels"])
 from app.api.v1.messages import router as messages_router

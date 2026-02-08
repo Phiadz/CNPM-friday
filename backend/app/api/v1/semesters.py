@@ -171,7 +171,7 @@ async def update_semester(
     # Validate dates again if either changed
     start = semester_in.start_date or db_semester.start_date
     end = semester_in.end_date or db_semester.end_date
-    if start >= end:
+    if start and end and start >= end:
         raise HTTPException(
             status_code=400,
             detail="Start date must be before end date"

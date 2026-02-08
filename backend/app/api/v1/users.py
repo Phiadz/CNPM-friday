@@ -113,3 +113,39 @@ async def update_topic_permission(
         avatar_url=user.avatar_url,
         can_create_topics=user.can_create_topics,
     )
+
+
+@router.patch("/{user_id}/toggle-active", response_model=user_schema.UserAdminResponse, tags=["users"])
+async def toggle_user_active(
+    user_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(deps.get_current_user),
+):
+    """Toggle user active status (activate/deactivate). Admin only."""
+    _require_admin(current_user)
+
+    result = await db.execute(
+        select(User, Role)
+        .join(Role, User.role_id == Role.role_id)
+        .where(User.user_id == user_id)
+    )
+    row = result.first()
+    if not row:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user, role = row
+    user.is_active = not user.is_active
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+
+    return user_schema.UserAdminResponse(
+        user_id=user.user_id,
+        email=user.email,
+        full_name=user.full_name,
+        is_active=user.is_active,
+        role_id=user.role_id,
+        role_name=role.role_name if role else None,
+        avatar_url=user.avatar_url,
+        can_create_topics=user.can_create_topics,
+    )

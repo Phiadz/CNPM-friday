@@ -116,6 +116,9 @@ class User(Base):
     
     # Notifications
     notifications: Mapped[list["Notification"]] = relationship("Notification", back_populates="user")
+    
+    # Import Logs
+    import_logs: Mapped[list["ImportLog"]] = relationship("ImportLog", back_populates="user")
 
 
 class SystemSetting(Base):
@@ -158,7 +161,8 @@ class Semester(Base):
     end_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     status: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
-    academic_classes: Mapped[list["AcademicClass"]] = relationship("AcademicClass", back_populates="semester")
+    # Cascade delete: when semester is deleted, all associated classes are deleted
+    academic_classes: Mapped[list["AcademicClass"]] = relationship("AcademicClass", back_populates="semester", cascade="all, delete-orphan")
 
 
 class Subject(Base):
@@ -167,10 +171,12 @@ class Subject(Base):
     subject_code: Mapped[str] = mapped_column(String, unique=True)
     subject_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     dept_id: Mapped[int] = mapped_column(Integer, ForeignKey("departments.dept_id"))
+    credits: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
     department: Mapped["Department"] = relationship("Department", back_populates="subjects")
-    syllabuses: Mapped[list["Syllabus"]] = relationship("Syllabus", back_populates="subject")
-    academic_classes: Mapped[list["AcademicClass"]] = relationship("AcademicClass", back_populates="subject")
+    # Cascade delete: when subject is deleted, all associated syllabuses and classes are deleted
+    syllabuses: Mapped[list["Syllabus"]] = relationship("Syllabus", back_populates="subject", cascade="all, delete-orphan")
+    academic_classes: Mapped[list["AcademicClass"]] = relationship("AcademicClass", back_populates="subject", cascade="all, delete-orphan")
 
 
 class Syllabus(Base):
@@ -183,7 +189,7 @@ class Syllabus(Base):
     is_active: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
 
     subject: Mapped["Subject"] = relationship("Subject", back_populates="syllabuses")
-    evaluation_criteria: Mapped[list["EvaluationCriterion"]] = relationship("EvaluationCriterion", back_populates="syllabus")
+    evaluation_criteria: Mapped[list["EvaluationCriterion"]] = relationship("EvaluationCriterion", back_populates="syllabus", cascade="all, delete-orphan")
 
 
 class AcademicClass(Base):
@@ -198,12 +204,13 @@ class AcademicClass(Base):
     subject: Mapped["Subject"] = relationship("Subject", back_populates="academic_classes")
     lecturer: Mapped["User"] = relationship("User", back_populates="taught_classes")
     
-    # FIX: Added Cascade delete for Enrollments
+    # Cascade delete for all class-dependent records (teams, projects, milestones, resources, enrollments)
+    # When a class is deleted, all associated records are also deleted
     enrollments: Mapped[list["ClassEnrollment"]] = relationship("ClassEnrollment", back_populates="academic_class", cascade="all, delete-orphan")
-    projects: Mapped[list["Project"]] = relationship("Project", back_populates="academic_class")
-    teams: Mapped[list["Team"]] = relationship("Team", back_populates="academic_class")
-    milestones: Mapped[list["Milestone"]] = relationship("Milestone", back_populates="academic_class")
-    resources: Mapped[list["Resource"]] = relationship("Resource", back_populates="academic_class")
+    projects: Mapped[list["Project"]] = relationship("Project", back_populates="academic_class", cascade="all, delete-orphan")
+    teams: Mapped[list["Team"]] = relationship("Team", back_populates="academic_class", cascade="all, delete-orphan")
+    milestones: Mapped[list["Milestone"]] = relationship("Milestone", back_populates="academic_class", cascade="all, delete-orphan")
+    resources: Mapped[list["Resource"]] = relationship("Resource", back_populates="academic_class", cascade="all, delete-orphan")
 
 
 class ClassEnrollment(Base):
@@ -537,3 +544,21 @@ class Notification(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     
     user: Mapped["User"] = relationship("User", back_populates="notifications")
+
+
+class ImportLog(Base):
+    """Import log model to track bulk import operations."""
+    __tablename__ = "import_logs"
+    
+    log_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("users.user_id", ondelete="CASCADE"))
+    import_type: Mapped[str] = mapped_column(String(50), nullable=False)  # 'subjects', 'classes', 'users'
+    total_rows: Mapped[int] = mapped_column(Integer, default=0)
+    successful: Mapped[int] = mapped_column(Integer, default=0)
+    failed: Mapped[int] = mapped_column(Integer, default=0)
+    skipped: Mapped[int] = mapped_column(Integer, default=0)
+    details: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON string of results
+    imported_ids: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON array of IDs for revert
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    
+    user: Mapped["User"] = relationship("User", back_populates="import_logs")

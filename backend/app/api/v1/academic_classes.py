@@ -95,3 +95,5 @@ async def delete_academic_class(class_id: int, db: AsyncSession = Depends(get_db
     await db.commit()
     
     return None
+    
+    return None

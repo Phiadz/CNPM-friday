@@ -165,10 +165,88 @@ export const classService = {
 
 export const semesterService = {
   getAll: async (params) => api.get('/semesters', { params }),
+  getById: async (id) => api.get(`/semesters/${id}`),
   create: async (data) => api.post('/semesters', data),
-  delete: async (id) => api.delete(`/semesters/${id}`)
+  update: async (id, data) => api.put(`/semesters/${id}`, data),
+  delete: async (id) => api.delete(`/semesters/${id}`),
+  updateStatus: async (id, status) => api.put(`/semesters/${id}`, { status })
+};
 
+// User service - add toggle active
+export const userServiceExtended = {
+  toggleActive: async (userId) => api.patch(`/users/${userId}/toggle-active`)
+};
 
+// Import Service - Bulk import for subjects, classes, users
+export const importService = {
+  // Import subjects from CSV/Excel
+  importSubjects: async (file) => {
+    const formData = new FormData();
+    if (file instanceof FormData) {
+      formData.append('file', file.get('file'));
+    } else {
+      formData.append('file', file);
+    }
+    return api.post('/admin/import/subjects', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+  },
+
+  // Import classes from CSV/Excel
+  importClasses: async (file) => {
+    const formData = new FormData();
+    if (file instanceof FormData) {
+      formData.append('file', file.get('file'));
+    } else {
+      formData.append('file', file);
+    }
+    return api.post('/admin/import/classes', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+  },
+
+  // Import users from CSV/Excel
+  importUsers: async (file) => {
+    const formData = new FormData();
+    if (file instanceof FormData) {
+      formData.append('file', file.get('file'));
+    } else {
+      formData.append('file', file);
+    }
+    return api.post('/admin/import/users', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+  },
+
+  // Download import template
+  downloadTemplate: async (templateType) => {
+    const response = await api.get(`/admin/import/templates/${templateType}`, {
+      responseType: 'blob'
+    });
+    
+    // Create a blob URL and trigger download
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `${templateType}_import_template.csv`);
+    document.body.appendChild(link);
+    link.click();
+    link.parentNode.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  },
+
+  // Import logs management
+  saveLog: async (logData) => {
+    return api.post('/admin/import/logs', logData);
+  },
+
+  getLogs: async () => {
+    return api.get('/admin/import/logs');
+  },
+
+  deleteLog: async (logId) => {
+    return api.delete(`/admin/import/logs/${logId}`);
+  }
 };
 
 // Export default api instance just in case

@@ -269,7 +269,8 @@ const LecturerDashboard = () => {
         if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) {
             return;
         }
-        event.preventDefault();
+        // Enable horizontal scroll with mouse wheel on vertical movement
+        // Note: preventDefault() removed due to passive event listener
         container.scrollLeft += event.deltaY;
     };
     const greetingName = useMemo(() => {

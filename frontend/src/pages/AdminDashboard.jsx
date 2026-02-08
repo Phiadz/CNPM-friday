@@ -7,21 +7,35 @@ import {
   SearchOutlined, UserOutlined, BookOutlined, TeamOutlined,
   EditOutlined, DeleteOutlined, PlusOutlined,
   MenuOutlined, ArrowLeftOutlined, SettingOutlined, BellOutlined,
-  LogoutOutlined
+  LogoutOutlined, CalendarOutlined, UploadOutlined
 } from '@ant-design/icons';
 
 // Import services
-import { subjectService, classService, userService, topicService } from '../services/api';
+import { subjectService, classService, userService, topicService, semesterService, userServiceExtended, importService } from '../services/api';
 import { useAuth } from '../components/AuthContext';
+import ImportFilesTab from '../components/ImportFilesTab';
 
 const { Title, Text } = Typography;
 const { Header, Sider, Content } = Layout;
+const { Option } = Select;
 
 const AdminDashboard = () => {
   const [form] = Form.useForm();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
-  const [selectedKey, setSelectedKey] = useState('1'); // 1: Môn học, 2: Học kỳ, 3: Người dùng, 4: Duyệt đề tài
+  const [selectedKey, setSelectedKey] = useState('1');
+
+  // Get user role (Admin=1, Staff=2, HeadDept=3)
+  const userRoleId = user?.role_id;
+  const userRoleName = user?.role_name?.toUpperCase();
+
+  // Dropdown data for Class Management form
+  const [lecturers, setLecturers] = useState([]);
+  const [semesters, setSemesters] = useState([]);
+  const [subjects, setSubjects] = useState([]);
+
+  const subjectById = useMemo(() => new Map(subjects.map((subject) => [subject.subject_id, subject])), [subjects]);
+  const lecturerById = useMemo(() => new Map(lecturers.map((lecturer) => [lecturer.user_id, lecturer])), [lecturers]);
 
   // Notification State
   const [isNotificationOpen, setNotificationOpen] = useState(false);
@@ -97,6 +111,13 @@ const AdminDashboard = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
+      // Skip data fetching for Import Files tab
+      if (selectedKey === '6') {
+        setData([]);
+        setLoading(false);
+        return;
+      }
+
       let res;
       const params = {
         skip: (pagination.current - 1) * pagination.pageSize,
@@ -112,6 +133,8 @@ const AdminDashboard = () => {
         res = await userService.getAll(params);
       } else if (selectedKey === '4') {
         res = await topicService.getAll();
+      } else if (selectedKey === '5') {
+        res = await semesterService.getAll();
       }
 
       // Kiểm tra định dạng
@@ -143,6 +166,28 @@ const AdminDashboard = () => {
     fetchData();
   }, [selectedKey, pagination.current, searchText]);
 
+  // Fetch dropdown data for Class Management form
+  useEffect(() => {
+    const fetchDropdownData = async () => {
+      try {
+        // Fetch lecturers (role_id = 4)
+        const lecRes = await userService.getAll({ role_id: 4 });
+        setLecturers(Array.isArray(lecRes.data) ? lecRes.data : []);
+        
+        // Fetch semesters
+        const semRes = await semesterService.getAll();
+        setSemesters(Array.isArray(semRes.data) ? semRes.data : []);
+        
+        // Fetch subjects
+        const subRes = await subjectService.getAll({});
+        setSubjects(Array.isArray(subRes.data) ? subRes.data : []);
+      } catch (err) {
+        console.error('Failed to fetch dropdown data:', err);
+      }
+    };
+    fetchDropdownData();
+  }, []);
+
   // --- HÀNH ĐỘNG ---
   const handleDelete = (id) => {
     Modal.confirm({
@@ -154,12 +199,13 @@ const AdminDashboard = () => {
         try {
           if (selectedKey === '1') await subjectService.delete(id);
           else if (selectedKey === '2') await classService.delete(id);
+          else if (selectedKey === '5') await semesterService.delete(id);
           // Người dùng thường được vô hiệu hóa mềm, đang chờ triển khai
 
           message.success('Deleted successfully');
           fetchData();
         } catch (err) {
-          message.error("Failed to delete data!");
+          message.error(err.response?.data?.detail || err.message || "Failed to delete data!");
         }
       }
     });
@@ -173,14 +219,22 @@ const AdminDashboard = () => {
       } else if (selectedKey === '2') {
         if (editingKey) await classService.update(editingKey, values);
         else await classService.create(values);
+      } else if (selectedKey === '5') {
+        if (editingKey) await semesterService.update(editingKey, values);
+        else await semesterService.create(values);
       }
       // Tạo người dùng thường liên quan đến nhiều logic hơn (mật khẩu), giữ đơn giản cho lúc này
 
       message.success(editingKey ? 'Updated successfully' : 'Created successfully');
       setIsModalOpen(false);
       fetchData();
+      // Refresh dropdown data for semesters
+      if (selectedKey === '5') {
+        const semRes = await semesterService.getAll();
+        setSemesters(Array.isArray(semRes.data) ? semRes.data : []);
+      }
     } catch (err) {
-      message.error(err.message || "Error: Please check input info.");
+      message.error(err.response?.data?.detail || err.message || "Error: Please check input info.");
     }
   };
 
@@ -212,6 +266,79 @@ const AdminDashboard = () => {
     }
   };
 
+  // Toggle user active/inactive
+  const handleUserToggleActive = async (record) => {
+    try {
+      await userServiceExtended.toggleActive(record.user_id);
+      setData((prev) => prev.map((item) => (
+        item.user_id === record.user_id ? { ...item, is_active: !item.is_active } : item
+      )));
+      message.success(`User ${record.is_active ? 'deactivated' : 'activated'} successfully`);
+    } catch (err) {
+      message.error('Failed to update user status');
+    }
+  };
+
+  // Change semester status
+  const handleSemesterStatusChange = async (record, newStatus) => {
+    try {
+      await semesterService.updateStatus(record.semester_id, newStatus);
+      fetchData();
+      message.success(`Semester status changed to ${newStatus}`);
+    } catch (err) {
+      message.error(err.response?.data?.detail || err.message || 'Failed to update semester status');
+    }
+  };
+
+  // Get display role name
+  const getDisplayRoleName = () => {
+    if (userRoleId === 1) return 'Administrator';
+    else if (userRoleId === 2) return 'Staff';
+    else if (userRoleId === 3) return 'Head of Department';
+    return 'User';
+  };
+
+  // Get menu items based on user role
+  const getMenuItemsByRole = () => {
+    const allItems = [
+      { key: '1', icon: <BookOutlined />, label: 'Subject Management' },
+      { key: '2', icon: <TeamOutlined />, label: 'Class Management' },
+      { key: '3', icon: <UserOutlined />, label: 'User Management' },
+      { key: '4', icon: <SettingOutlined />, label: 'Topic Approval' },
+      { key: '5', icon: <CalendarOutlined />, label: 'Semester Management' },
+      { key: '6', icon: <UploadOutlined />, label: 'Import Files' },
+    ];
+
+    // Admin (role_id=1): Full access
+    if (userRoleId === 1) {
+      return allItems;
+    }
+    // Staff (role_id=2): Subject, Class, User, Semester, Import Files (no Topic Approval)
+    else if (userRoleId === 2) {
+      return allItems.filter(item => ['1', '2', '3', '5', '6'].includes(item.key));
+    }
+    // HeadDept (role_id=3): Class, Subject, Topic Approval (no User, no Semester, no Import)
+    else if (userRoleId === 3) {
+      return allItems.filter(item => ['1', '2', '4'].includes(item.key));
+    }
+
+    return allItems; // Default fallback
+  };
+
+  // Get available keys for current role
+  const getAvailableKeys = () => {
+    const items = getMenuItemsByRole();
+    return items.map(item => item.key);
+  };
+
+  // Reset selectedKey to first available if current is not in available
+  React.useEffect(() => {
+    const availableKeys = getAvailableKeys();
+    if (!availableKeys.includes(selectedKey)) {
+      setSelectedKey(availableKeys[0] || '1');
+    }
+  }, [userRoleId]);
+
   const getColumns = () => {
     const commonActions = {
       title: 'Actions',
@@ -236,14 +363,31 @@ const AdminDashboard = () => {
       return [
         { title: 'Course Code', dataIndex: 'subject_code', key: 'subject_code' },
         { title: 'Subject Name', dataIndex: 'subject_name', key: 'subject_name' },
+        { title: 'Credits', dataIndex: 'credits', key: 'credits', align: 'center' },
         { title: 'Dept ID', dataIndex: 'dept_id', key: 'dept_id', align: 'center' },
         commonActions
       ];
     } else if (selectedKey === '2') { // LỚP HỌC
       return [
         { title: 'Class Code', dataIndex: 'class_code', key: 'class_code' },
-        { title: 'Subject', dataIndex: 'subject_name', key: 'subject_name' },
-        { title: 'Lecturer', dataIndex: 'lecturer_name', key: 'lecturer_name' },
+        {
+          title: 'Subject',
+          key: 'subject',
+          render: (_, record) => {
+            const subject = subjectById.get(record.subject_id);
+            if (subject) return `${subject.subject_code} - ${subject.subject_name}`;
+            return record.subject_name || record.subject_id || 'N/A';
+          }
+        },
+        {
+          title: 'Lecturer',
+          key: 'lecturer',
+          render: (_, record) => {
+            const lecturer = lecturerById.get(record.lecturer_id);
+            if (lecturer) return `${lecturer.full_name}`;
+            return record.lecturer_name || record.lecturer_id || 'N/A';
+          }
+        },
         commonActions
       ];
     } else if (selectedKey === '3') { // NGƯỜI DÙNG
@@ -270,7 +414,20 @@ const AdminDashboard = () => {
             </Space>
           )
         },
-        { title: 'Status', dataIndex: 'is_active', key: 'is_active', render: (val) => val ? <Badge status="success" text="Active" /> : <Badge status="error" text="Inactive" /> }
+        {
+          title: 'Status',
+          key: 'is_active',
+          render: (_, record) => (
+            <Button
+              size="small"
+              type={record.is_active ? 'primary' : 'default'}
+              danger={record.is_active}
+              onClick={() => handleUserToggleActive(record)}
+            >
+              {record.is_active ? 'Active' : 'Inactive'}
+            </Button>
+          )
+        }
       ];
     } else if (selectedKey === '4') { // TOPIC APPROVAL
       return [
@@ -286,8 +443,9 @@ const AdminDashboard = () => {
                 size="small"
                 type="primary"
                 onClick={() => handleTopicApproval(record.topic_id, 'approve')}
+                disabled={record.status === 'APPROVED'}
               >
-                {record.status === 'APPROVED' ? 'Create project' : 'Approve'}
+                Approve
               </Button>
               <Button
                 size="small"
@@ -297,6 +455,53 @@ const AdminDashboard = () => {
               >
                 Reject
               </Button>
+            </Space>
+          )
+        }
+      ];
+    } else if (selectedKey === '5') { // SEMESTER MANAGEMENT
+      return [
+        { title: 'ID', dataIndex: 'semester_id', key: 'semester_id', width: 60 },
+        { title: 'Semester Code', dataIndex: 'semester_code', key: 'semester_code' },
+        { title: 'Semester Name', dataIndex: 'semester_name', key: 'semester_name' },
+        {
+          title: 'Status',
+          key: 'status',
+          render: (_, record) => {
+            const statusColors = {
+              'ACTIVE': 'green',
+              'COMPLETED': 'gray',
+              'UPCOMING': 'blue'
+            };
+            return (
+              <Select
+                value={record.status}
+                size="small"
+                style={{ width: 120 }}
+                onChange={(value) => handleSemesterStatusChange(record, value)}
+              >
+                <Option value="ACTIVE"><Badge color="green" text="ACTIVE" /></Option>
+                <Option value="COMPLETED"><Badge color="gray" text="COMPLETED" /></Option>
+                <Option value="UPCOMING"><Badge color="blue" text="UPCOMING" /></Option>
+              </Select>
+            );
+          }
+        },
+        {
+          title: 'Actions',
+          key: 'action',
+          render: (_, record) => (
+            <Space>
+              <Tooltip title="Edit">
+                <Button size="small" icon={<EditOutlined />} onClick={() => {
+                  setEditingKey(record.semester_id);
+                  form.setFieldsValue(record);
+                  setIsModalOpen(true);
+                }} />
+              </Tooltip>
+              <Tooltip title="Delete">
+                <Button size="small" danger icon={<DeleteOutlined />} onClick={() => handleDelete(record.semester_id)} />
+              </Tooltip>
             </Space>
           )
         }
@@ -311,6 +516,8 @@ const AdminDashboard = () => {
       case '2': return 'Class Management';
       case '3': return 'User Management';
       case '4': return 'Topic Approval';
+      case '5': return 'Semester Management';
+      case '6': return 'Import Files';
       default: return 'Dashboard';
     }
   };
@@ -331,12 +538,7 @@ const AdminDashboard = () => {
           mode="inline"
           selectedKeys={[selectedKey]}
           onClick={(e) => { setSelectedKey(e.key); setPagination({ ...pagination, current: 1 }); }}
-          items={[
-            { key: '1', icon: <BookOutlined />, label: 'Subject Management' },
-            { key: '2', icon: <TeamOutlined />, label: 'Class Management' },
-            { key: '3', icon: <UserOutlined />, label: 'User Management' },
-            { key: '4', icon: <SettingOutlined />, label: 'Topic Approval' },
-          ]}
+          items={getMenuItemsByRole()}
         />
       </Sider>
 
@@ -362,7 +564,7 @@ const AdminDashboard = () => {
             </div>
             <Space>
               <Avatar icon={<UserOutlined />} style={{ backgroundColor: '#1890ff' }} />
-              <Text strong>Administrator</Text>
+              <Text strong>{getDisplayRoleName()}</Text>
             </Space>
             <Button icon={<LogoutOutlined />} onClick={logout}>
               Sign out
@@ -377,35 +579,41 @@ const AdminDashboard = () => {
                 <Title level={3} style={{ margin: 0 }}>{getTitle()}</Title>
               </Col>
               <Col>
-                <Space>
-                  <Input
-                    placeholder="Search..."
-                    prefix={<SearchOutlined />}
-                    onChange={e => setSearchText(e.target.value)}
-                    allowClear
-                    style={{ width: 300, borderRadius: '6px' }}
-                  />
-                  {selectedKey !== '3' && selectedKey !== '4' && (
-                    <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditingKey(null); form.resetFields(); setIsModalOpen(true); }} size="large">
-                      Add New
-                    </Button>
-                  )}
-                </Space>
+                {selectedKey !== '6' && (
+                  <Space>
+                    <Input
+                      placeholder="Search..."
+                      prefix={<SearchOutlined />}
+                      onChange={e => setSearchText(e.target.value)}
+                      allowClear
+                      style={{ width: 300, borderRadius: '6px' }}
+                    />
+                    {selectedKey !== '3' && selectedKey !== '4' && (
+                      <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditingKey(null); form.resetFields(); setIsModalOpen(true); }} size="large">
+                        Add New
+                      </Button>
+                    )}
+                  </Space>
+                )}
               </Col>
             </Row>
 
-            <Table
-              loading={loading}
-              columns={getColumns()}
-              dataSource={data}
-              rowKey={(record) => record.subject_id || record.class_id || record.user_id || record.topic_id}
-              pagination={{
-                current: pagination.current,
-                pageSize: pagination.pageSize,
-                total: total,
-                onChange: (page, pageSize) => setPagination({ current: page, pageSize })
-              }}
-            />
+            {selectedKey === '6' ? (
+              <ImportFilesTab apiService={importService} />
+            ) : (
+              <Table
+                loading={loading}
+                columns={getColumns()}
+                dataSource={data}
+                rowKey={(record) => record.subject_id || record.class_id || record.user_id || record.topic_id || record.semester_id}
+                pagination={{
+                  current: pagination.current,
+                  pageSize: pagination.pageSize,
+                  total: total,
+                  onChange: (page, pageSize) => setPagination({ current: page, pageSize })
+                }}
+              />
+            )}
           </div>
         </Content>
       </Layout>
@@ -431,21 +639,65 @@ const AdminDashboard = () => {
               <Form.Item name="dept_id" label="Dept ID" rules={[{ required: true }]}>
                 <InputNumber style={{ width: '100%' }} />
               </Form.Item>
+              <Form.Item name="credits" label="Credits">
+                <InputNumber style={{ width: '100%' }} min={0} max={10} />
+              </Form.Item>
             </>
           )}
           {selectedKey === '2' && (
             <>
               <Form.Item name="class_code" label="Class Code" rules={[{ required: true }]}>
-                <Input />
+                <Input placeholder="e.g., IT101-01" />
               </Form.Item>
-              <Form.Item name="semester_id" label="Semester ID" rules={[{ required: true }]}>
-                <InputNumber style={{ width: '100%' }} />
+              <Form.Item name="semester_id" label="Semester" rules={[{ required: true }]}>
+                <Select placeholder="Select semester">
+                  {semesters.map(sem => (
+                    <Option key={sem.semester_id} value={sem.semester_id}>
+                      {sem.semester_code || `Semester ${sem.semester_id}`}
+                    </Option>
+                  ))}
+                </Select>
               </Form.Item>
-              <Form.Item name="subject_id" label="Subject ID" rules={[{ required: true }]}>
-                <InputNumber style={{ width: '100%' }} />
+              <Form.Item name="subject_id" label="Subject" rules={[{ required: true }]}>
+                <Select placeholder="Select subject" showSearch optionFilterProp="children">
+                  {subjects.map(sub => (
+                    <Option key={sub.subject_id} value={sub.subject_id}>
+                      {sub.subject_code} - {sub.subject_name}
+                    </Option>
+                  ))}
+                </Select>
               </Form.Item>
-              <Form.Item name="lecturer_id" label="Lecturer ID (UUID)" rules={[{ required: true }]}>
-                <Input />
+              <Form.Item name="lecturer_id" label="Lecturer" rules={[{ required: true }]}>
+                <Select placeholder="Select lecturer" showSearch optionFilterProp="children">
+                  {lecturers.map(lec => (
+                    <Option key={lec.user_id} value={lec.user_id}>
+                      {lec.full_name} ({lec.email})
+                    </Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </>
+          )}
+          {selectedKey === '5' && (
+            <>
+              <Form.Item name="semester_code" label="Semester Code" rules={[{ required: true }]}>
+                <Input placeholder="e.g., 2026-SPRING" />
+              </Form.Item>
+              <Form.Item name="semester_name" label="Semester Name">
+                <Input placeholder="e.g., Spring Semester 2026" />
+              </Form.Item>
+              <Form.Item name="start_date" label="Start Date" rules={[{ required: true }]}>
+                <Input type="date" />
+              </Form.Item>
+              <Form.Item name="end_date" label="End Date" rules={[{ required: true }]}>
+                <Input type="date" />
+              </Form.Item>
+              <Form.Item name="status" label="Status" initialValue="UPCOMING">
+                <Select>
+                  <Option value="ACTIVE">ACTIVE</Option>
+                  <Option value="COMPLETED">COMPLETED</Option>
+                  <Option value="UPCOMING">UPCOMING</Option>
+                </Select>
               </Form.Item>
             </>
           )}
